@@ -4,13 +4,14 @@ classdef elastic < handle
     properties(Access=protected)
         mesh;
         felem;
+        quadrule;
         lambda;
         mu;
     end
 
     methods(Access=protected,Static)
         %%
-        function M=mass(pipj,detD,el,co)
+        function M=mass(c, detD,pipj,el,co)
         %MASS returns the mass matrix.
         %
         % M=MASS(pipj,detD,el,co) returns the mass matrix for the local set
@@ -22,8 +23,8 @@ classdef elastic < handle
             Ns = size(pipj,1);
             Ne = size(el,1);
 
-            Nc = size(co,1);
-            Nd = size(co,2);
+            Nc = size(co,3);
+            Nd = size(co,1);
             
             
             % pipj for every coordiante dimension
@@ -35,7 +36,7 @@ classdef elastic < handle
                 P(i:Nd:Nd*Ns,i:Nd:Nd*Ns) = pipj(i:Nd:end,:);
             end
             %the correct determinants meet the correct values
-            M = detD*P(:)';
+            M = detD*c*P(:)';
             %and now checkerboard it again
             M = M';
             
@@ -68,7 +69,7 @@ classdef elastic < handle
             Nd = size(dphi,2);
             Nq = size(dphi,3);
             Ne = size(el,1);
-            Nc = size(co,1);
+            Nc = size(co,3);
 
             I = repmat(1:Nd*Ns,Nd*Ns,1); I=I(:);
             J = repmat(1:Nd*Ns,1,Nd*Ns); J=J(:);
@@ -101,41 +102,39 @@ classdef elastic < handle
             idx   = [1,2; ...
                      1,3; ...
                      2,3];
-
-            S=zeros(Nd*Ns*Nd*Ns,1,Ne);
-            R=zeros(Nd*Ns,Ns,Ne);
+             
+            S     = ofem.matrixarray(zeros(Ns*Nd, Ns*Nd, Ne));
+            R     = ofem.matrixarray(zeros(Ns, Nd*Ns,Ne));
             for k=1:Nq
                 % DinvT is Nd*NexNd matrix
                 % dphi is NsxNdxNl matrix
                 % dphi(:,:,k)*DinvT' is NsxNd*Ne
-                globdphi=reshape(dphi(:,:,k)*DinvT',Ns,Nd,Ne);
-
+                globdphi = DinvT*dphi(:,:,k)';
+                
                 % R is Nd*NsxNsxNe
                 for i=1:Nd
                     for j=i:Nd
-                        R(j:Nd:end,i,:) = globdphi(:,j,:)*sigma(i,j);
+                        R(i,j:Nd:end,:) = globdphi(j,:,:)*sigma(i,j);
                     end
                 end
                 for i=1:nchoosek(Nd,2)
-                    R(idx(i,1):Nd:end,i+Nd,:) = globdphi(:,idx(i,2),:)*sqrt(mu);
-                    R(idx(i,2):Nd:end,i+Nd,:) = globdphi(:,idx(i,1),:)*sqrt(mu);
-                end
+                     R(i+Nd,idx(i,1):Nd:end,:) = globdphi(idx(i,2),:,:)*sqrt(mu);
+                     R(i+Nd,idx(i,2):Nd:end,:) = globdphi(idx(i,1),:,:)*sqrt(mu);
+                 end
 
                 % globdphi is now NsxNdxNe matrix => extend along first
                 % dimension and perform a dot product along the second
-                S=S+w(k)*dot(R(I,:,:),R(J,:,:),2);
+                S =S+R'*w(k)*R;
             end
 
-            detD = repmat(detD',Nd*Ns*Nd*Ns,1);
-            S    = squeeze(S).*detD;
+            S=S*detD;
 
             I = repmat(1:Ns,Nd*Nd*Ns,1    ); I=I(:);
             J = repmat(1:Ns,Nd      ,Nd*Ns); J=J(:);
 
             I = Nd*el(:,I)-repmat(kron((Nd-1):-1:0,ones(1,Nd*Ns)),Ne,Ns); I=I';
             J = Nd*el(:,J)-repmat(kron(ones(1,Nd*Ns),(Nd-1):-1:0),Ne,Ns); J=J';
-
-            S=sparse(I(:),J(:),S(:),Nd*Nc,Nd*Nc);
+            S=sparse(J(:),I(:),S(:),Nd*Nc,Nd*Nc);
         end
 
         %%
@@ -151,25 +150,24 @@ classdef elastic < handle
         % see also OFEM.MESH.JACOBIANDATA, OFEM.FINITEELEMENT.PHI,
         % OFEM.FINITEELEMENT.QUADDATA
         %
-            Ne       = size(el,1);
-            Nd       = size(co,2);
-            Nn       = size(el,2);
-            Nq       = size(w, 1);
-            Nl       = size(l,2);
-            Ns       = size(phi,1);
-            F        = zeros(Nd*Ns*Ne,1);
+          Ne       = size(el,1);
+          Nd       = size(co,1);
+          Nn       = size(el,2);
+          Nq       = size(w, 1);
+          Nl       = size(l,2);
+          Ns       = size(phi,1);
+         
+          F    = ofem.matrixarray(zeros(Nd,Ns,Ne));
+          elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
 
-            elco = reshape(permute(reshape(co(el(:,1:Nl),:),Ne,Nl,Nd),[1,3,2]),Nd*Ne,Nl);
-
-            for p=1:Nq
-                P    = reshape(elco*l(p,:)', Ne, Nd);
-                fP   = reshape(f(P),[],1);
-                F    = F+w(p)*kron(phi(:,p),fP);
+            for q=1:Nq
+                X = elco*(l(q,:)');
+                F = F + f(X)*(w(q)*phi(:,q)');
             end
-            F    = F.*repmat(detD,Ns*Nd,1);
+            F = F*detD;
             I    = repelem(1:Nn,1,Nd); I=I(:);
-            I    = Nd*el(:,I) - repmat((Nd-1):-1:0,Ne,Ns); %I=I';
-            b    = accumarray(I(:),F);
+            I    = Nd*el(:,I) - repmat((Nd-1):-1:0,Ne,Ns); I=I';
+            b    = sparse(I(:),1,F(:),Nd*size(co,3),1);
         end
 
         function b=neumann(meas,phi,w,l,g,faces,normals,co)
@@ -185,38 +183,62 @@ classdef elastic < handle
         % OFEM.FINITEELEMENT.PHI, OFEM.FINITEELEMENT.QUADDATA
         %
             Nl     = size(l  ,2);
-            Nd     = size(co ,2);
+            Nd     = size(co ,1);
             Nq     = size(w  ,1);
             Ns     = size(phi,1);
             Nf     = size(faces,1);
             Nn     = size(faces,2);
+            
+            
 
-            F      = zeros(Nd*Ns*Nf,1);
+           % F      = zeros(Nd*Ns*Nf,1);
 
             % faceco*l gives global quadrature points => evaluate there
-            faceco  = reshape(permute(reshape(co(faces(:,1:Nl),:),Nf,Nl,Nd),[1,3,2]),Nd*Nf,Nl);
-            normals = repelem(normals,Nd,1);
-%             normals
+            F      = ofem.matrixarray(zeros(Nd, Ns,Nf));
+            faceco = reshape(co(:,:,faces(:,1:Nl)'),[],Nl,Nf);
+            
+            %faceco  = reshape(permute(reshape(co(faces(:,1:Nl),:),Nf,Nl,Nd),[1,3,2]),Nd*Nf,Nl);
 
             for q=1:Nq
-                X    = reshape(faceco*l(q,:)',Nf,Nd);
-                F    = F+w(q)*kron(phi(:,q),reshape(g(X,normals),[],1));
+                X = faceco*(l(q,:)');
+                F = F + g(X,normals)*(w(q)*phi(:,q)');
             end
 
-            F    = F.*repmat(meas,Ns*Nd,1);
+            F    = F*meas;
             I    = repelem(1:Nn,1,Nd); I=I(:);
-            I    = Nd*faces(:,I) - repmat((Nd-1):-1:0,Nf,Ns); %I=I';
-            b    = sparse(I(:),1,F,Nd*size(co,1),1);
+            I    = Nd*faces(:,I) - repmat((Nd-1):-1:0,Nf,Ns); I=I';
+            b    = sparse(I(:),1,F(:),Nd*size(co,3),1);
 %             b    = accumarray(faces(:),F);
+        end
+        
+        function b=dirichlet(d,nodes,co)
+        %DIRICHLET returns the Dirichlet-originated part of the load vector.
+        %
+        % b=DIRICHLET(el,co) computes the Dirichlet-originated vector at
+        % the specified faces.
+        %
+%         diri_x    = mesh.dim*dirichlet - 2;
+%         diri_y    = mesh.dim*dirichlet - 1;
+%         diri_z    = mesh.dim*dirichlet;
+            Nc  = size(co ,3);
+            dim = size(co,1);
+            Dx  =  d(co(1,:,nodes));            
+            Dy   = d(co(2,:,nodes));
+            Dz   = d(co(3,:,nodes));
+            D =squeeze([Dx Dy Dz]);
+            D= D';
+            pos =[dim*nodes-2 dim*nodes-1 dim*nodes]; 
+            b   = sparse(pos(:),1,D(:),dim*Nc,1);
         end
     end
 
     methods
         %%
-        function obj=elastic(mesh,felem)
+        function obj=elastic(mesh,felem, quadrule)
 %             obj@ofem.laplace(mesh,felem);
             obj.mesh  = mesh;
             obj.felem = felem;
+            obj.quadrule = quadrule;
         end
 
         function setmaterial(obj,lambda,mu)
@@ -240,117 +262,354 @@ classdef elastic < handle
         % Note that the DOFs are dim x Nco. The solution is therefore
         % orderer as [u1T1;u2T1;u3T1;u1T2;u2T2;u3T2;...]. 
         %
-
+        
+            Np  = size(obj.mesh.parts,2);
+            Nbd = size(obj.mesh.bd   ,2);
+            Nc  = size(obj.mesh.co       ,3);
+            Nd  = obj.mesh.dim;
+            
+            intvol  = 0;
+            intface = 0;
+            intdiri = 0;
+            
+            
+             %% check input
             if nargin==1
-                opt.S=1;
-                opt.M=1;
-                opt.b=0;
-                opt.N=0;
+                % elliptic equation with homogenous Neumann boundary
+                opt=struct('S',1,'D',0,'M',0,'force',0,'A',1,'b',ones(3,1),'c',1);
             else
+                if nargin>3
+                    error('ofem:elliptic:TooManyArguments',...
+                          'I''m expecting at most one argument!');
+                end
                 opt=varargin{1};
-                if ~isstruct(opt)
-                    error('opt is expected to be a structure.');
-                else
 
-                if ~isfield(opt,'M'); opt.M=0; end
-                if ~isfield(opt,'S'); opt.S=0; end
-                if ~isfield(opt,'b'); opt.b=0; end
-                if ~isfield(opt,'N'); opt.N=0; end
+                if ~isstruct(opt)
+                    error('ofem:elliptic:InvalidArgument',...
+                          'opt is expected to be a structure.');
+                end
+
+                %% stiffness
+                if ~isfield(opt,'S')
+                    opt.S = 0;
+                else
+                    % stiffness matrix requested, check for material
+                    if isfield(opt, 'A')
+                    %if isempty(opt.A)
+                        % set to default
+                    else
+                    end
+                    aux.S = cell(Np,1);
+                end
+
+                %% damping
+                if ~isfield(opt,'D')
+                    opt.D=0;
+                else
+                    aux.D = cell(Np,1);
+                end
+
+                %% mass
+                if ~isfield(opt,'M')
+                    opt.M=0;
+                else
+                    aux.M = cell(Np,1);
+                    if ~isfield(opt,'c')
+                        opt.c=1;
+                    end
+                end
+
+                %% volume force
+                if ~isfield(opt,'force')
+                    opt.force=[];
+                else
+                    aux.force = cell(Np,1);
+                end
+
+                %% Neumann boundary, pressure
+                if ~isfield(opt,'neumann')
+                    opt.neumann={};
+                else
+                    if iscell(opt.neumann)
+                        for k=1:numel(opt.neumann)
+                            if ~all(isfield(opt.neumann{k},{'data','idx'}))
+                                error('ofem:elliptic:InvalidArgument',...
+                                      'opt.neumann{%d} must contain a ''data'' and a ''idx'' field.',k);
+                            end
+                            if ~isnumeric(opt.neumann{k}.idx) || ~isscalar(opt.neumann{k}.idx)
+                                error('ofem:elliptic:InvalidArgument',...
+                                      'opt.neumann{%d}.idx must be a scalar.',k);
+                            end
+                            if opt.neumann{k}.idx>Nbd
+                                error('ofem:elliptic:InvalidArgument',...
+                                      'opt.neumann{%d}.idx exceeds the number of available sidesets.',k);
+                            end
+                            if isnumeric(opt.neumann{k}.data) && isscalar(opt.neumann{k}.data)
+                                val = opt.neumann{k}.data;
+                                opt.neumann{k}.data = @(X) val*ones(1,1,size(X,3));
+                            elseif isa(opt.neumann{k}.data,'function_handle')
+                            else
+                                error('ofem:elliptic:InvalidArgument',...
+                                      'opt.neumann{%d}.data must either be a scalar or a function handle.',k);
+                            end
+                        end
+                    elseif isstruct(opt.neumann) && all(isfield(opt.neumann,{'data','idx'}))
+                        neumanndata = opt.neumann.data;
+                        neumannidx  = opt.neumann.idx ;
+                        
+                        if ~isnumeric(neumannidx) || ~isvector(neumannidx)
+                            error('ofem:elliptic:InvalidArgument',...
+                                  'opt.neumann.idx must be a vector.');
+                        end
+                        if opt.neumann.idx>Nbd
+                            error('ofem:elliptic:InvalidArgument',...
+                                  'opt.neumann.idx exceeds the number of available sidesets.');
+                        end
+                        if isnumeric(neumanndata) && isscalar(neumanndata)
+                            val = neumanndata;
+                            neumanndata = @(X) val*ones(1,1,size(X,3));
+                        elseif isa(neumanndata,'function_handle')
+                        else
+                            error('ofem:elliptic:InvalidArgument',...
+                                  'opt.neumann.data must either be a scalar or a function handle.');
+                        end
+                        
+                        opt.neumann = cell(numel(neumannidx),1);
+                        for k=1:numel(neumannidx)
+                            opt.neumann{k}.data = neumanndata;
+                            opt.neumann{k}.idx  = neumannidx(k);
+                        end
+                    else
+                        error('ofem:elliptic:InvalidArgument',...
+                              'opt.neumann must either be a cell array or a structure containing a ''data'' and a ''idx'' field.');
+                    end
+
+                    Nneu        = numel(opt.neumann);
+                    aux.neumann = cell(Nneu,1);
+                end
+
+
+                %% Dirichlet boundary
+                if ~isfield(opt,'dirichlet')
+                    opt.dirichlet={};
+                else
+                    if iscell(opt.dirichlet)
+                        for k=1:numel(opt.dirichlet)
+                            if ~all(isfield(opt.dirichlet{k},{'data','idx'}))
+                                error('ofem:elliptic:InvalidArgument',...
+                                      'opt.dirichlet{%d} must contain a ''data'' and a ''idx'' field.',k);
+                            end
+                            if opt.dirichlet{k}.idx>Nbd
+                                error('ofem:elliptic:InvalidArgument',...
+                                      'opt.dirichlet{%d}.idx exceeds the number of available sidesets.',k);
+                            end
+                            if isnumeric(opt.dirichlet{k}.data) && isscalar(opt.dirichlet{k}.data)
+                                val = opt.dirichlet{k}.data;
+                                opt.dirichlet{k}.data = @(X) val*ones(1,1,size(X,3));
+                            elseif isa(opt.dirichlet{k}.data,'function_handle')
+                            else
+                                error('ofem:elliptic:InvalidArgument',...
+                                      'opt.dirichlet.data must either be a scalar or a function handle.');
+                            end
+                        end
+                    elseif isstruct(opt.dirichlet) && all(isfield(opt.dirichlet,{'data','idx'}))
+                        dirichletdata = opt.dirichlet.data;
+                        dirichletidx  = opt.dirichlet.idx ;
+                        
+                        if ~isnumeric(dirichletidx) || ~isvector(dirichletidx)
+                            error('ofem:elliptic:InvalidArgument',...
+                                  'opt.dirichlet.idx must be a vector.');
+                        end
+                        if opt.dirichlet.idx>Nbd
+                            error('ofem:elliptic:InvalidArgument',...
+                                  'opt.dirichlet.idx exceeds the number of available sidesets.');
+                        end
+                        if isnumeric(dirichletdata) && isscalar(dirichletdata)
+                            val = dirichletdata;
+                            dirichletdata = @(X) val*ones(1,1,size(X,3));
+                        elseif isa(dirichletdata,'function_handle')
+                        else
+                            error('ofem:elliptic:InvalidArgument',...
+                                  'opt.dirichlet.data must either be a scalar or a function handle.');
+                        end
+                        
+                        opt.dirichlet = cell(numel(dirichletidx),1);
+                        for k=1:numel(dirichletidx)
+                            opt.dirichlet{k}.data = dirichletdata;
+                            opt.dirichlet{k}.idx  = dirichletidx{k};
+                        end
+                    else
+                        error('ofem:elliptic:InvalidArgument',...
+                              'opt.dirichlet must either be a cell array or a structure containing a ''data'' and a ''idx'' field.');
+                    end
+
+                    Ndiri         = numel(opt.dirichlet);
+                    aux.dirichlet = cell(Ndiri,1);
                 end
             end
 
-%             if opt.M==1
-%                 warning('No mass matrix computation supported so far!');
-%                 opt.M=0; % no stiffness matrix so far!
+
+            if opt.S||opt.D||opt.M||isempty(opt.force)==0
+                intvol=1;
+            end
+
+            if isempty(opt.neumann)==0
+                intface=1;
+            end
+
+            if isempty(opt.dirichlet)==0
+                intdiri=1;
+            end
+
+            if ~(intvol==1||intface==1||intdiri==1)
+                warning('Requested to compute nothing!');
+            end
+            
+% 
+%             if nargin==1
+%                 opt.S=1;
+%                 opt.M=1;
+%                 opt.b=0;
+%                 opt.N=0;
+%             else
+%                 opt=varargin{1};
+%                 if ~isstruct(opt)
+%                     error('opt is expected to be a structure.');
+%                 else
+% 
+%                 if ~isfield(opt,'M'); opt.M=0; end
+%                 if ~isfield(opt,'S'); opt.S=0; end
+%                 if ~isfield(opt,'b'); opt.b=0; end
+%                 if ~isfield(opt,'N'); opt.N=0; end
+%                 end
+%             end
+% 
+% %             if opt.M==1
+% %                 warning('No mass matrix computation supported so far!');
+% %                 opt.M=0; % no stiffness matrix so far!
+% %             end
+% 
+%             if opt.b==1
+%                 if ~isfield(opt,'load')
+%                     error('Load vector requested, but no function handle given!');
+%                 elseif ~isa(opt.load,'function_handle')
+%                     error('load is expected to be a function handle!');
+%                 end
+%             end
+%             
+%             if opt.N==1
+%                 if ~isfield(opt,'neumann')
+%                     error('Neumann boundary requested, but no function handle given!');
+%                 elseif ~isa(opt.neumann,'function_handle')
+%                     error('neumann is expected to be a function handle!');
+%                 end
+% 
+%                 if ~isfield(opt,'neumannidx')
+%                     error('You need to specifiy the Neumann boundary index!');
+%                 end
 %             end
 
-            if opt.b==1
-                if ~isfield(opt,'load')
-                    error('Load vector requested, but no function handle given!');
-                elseif ~isa(opt.load,'function_handle')
-                    error('load is expected to be a function handle!');
-                end
-            end
+            S  = sparse(Nc*Nd, Nc*Nd);
+            M  = sparse(Nc*Nd, Nc*Nd);
+            D  = sparse(Nc*Nd, Nc*Nd);
+            b  = sparse(Nc*Nd,1);
             
-            if opt.N==1
-                if ~isfield(opt,'neumann')
-                    error('Neumann boundary requested, but no function handle given!');
-                elseif ~isa(opt.neumann,'function_handle')
-                    error('neumann is expected to be a function handle!');
-                end
-
-                if ~isfield(opt,'neumannidx')
-                    error('You need to specifiy the Neumann boundary index!');
-                end
-            end
+            opt.A=1;
+            opt.b=ones(3,1);
+           %opt.c=1;
 
             tic;
-            [DinvT,detD] = obj.mesh.jacobiandata;
-            Np           = size(obj.mesh.parts,2);
+%             [DinvT,detD] = obj.mesh.jacobiandata;
+%             Np           = size(obj.mesh.parts,2);
 
-            %% mass
-            if opt.M==1
-                M    = cell(Np,1);
-                pipj = obj.felem.phiiphij(obj.mesh.dim);
-            end
+%% volume related integration
+            if intvol==1
+                % volume quad data
+                [w,l] = obj.quadrule.data(0);
 
-            if opt.S==1 || opt.b==1
-               [w,l] = obj.felem.quaddata(obj.mesh.dim);
-            end
+                % shape functions related stuff
+                pipj  = obj.felem.phiiphij(obj.mesh.dim);
+                phi   = obj.felem.phi(l);
+                dphi  = obj.felem.dphi(l);
+                [DinvT,detD] = obj.mesh.jacobiandata;
+                aux.detD   = detD;
 
-            %% stiffness
-            if opt.S==1
-                S    = cell(Np,1);
-                dphi = obj.felem.dphi(l);
-            end
-            
-            b = sparse(obj.mesh.dim*size(obj.mesh.co,1),1);
-
-            %% load vector
-            if opt.b==1
-                phi  = obj.felem.phi(l);
-                b    = obj.load(detD,phi,w,l,opt.load,obj.mesh.el,obj.mesh.co);
-            end
-            
-            %% Neumann boundary
-            if opt.N==1
-                [wN,lN] = obj.felem.quaddata(obj.mesh.dim-1);
-                phiN   = obj.felem.phi(lN);
-                [meas,faces,normals] = obj.mesh.neumann(opt.neumannidx);
-                meas    = vertcat(meas {:});
-                faces   = vertcat(faces{:});
-                normals = vertcat(normals{:});
-                b = b + obj.neumann(meas,phiN,wN,lN,opt.neumann,faces,normals,obj.mesh.co);
-            end
-            
-            %Stiffnes and mass matrizes over the element parts
-            if opt.S==1 || opt.M==1
-                for i =1:Np
+                % perform assembly
+                for i=1:Np
                     pIdx     = obj.mesh.parts{3,i};
                     elemsLoc = obj.mesh.el(pIdx,:);
-                    detDLoc  = detD(pIdx);
+                    detDLoc  = detD(:,:,pIdx);
+                    DinvTLoc = DinvT(:,:,pIdx);
                     
+                    %% handle stiffness matrix
                     if opt.S==1
-                        Didx     = false(1,length(pIdx)); Didx(pIdx)=true;
-                        Didx     = repmat(Didx,obj.mesh.dim,1);
-                        DinvTLoc = DinvT(Didx,:);
-                        S{i}     = obj.stiffness(obj.lambda(i), obj.mu(i),DinvTLoc,detDLoc,dphi,w,elemsLoc,obj.mesh.co);
+                        aux.S{i} = obj.stiffness(obj.lambda(i), obj.mu(i),DinvTLoc,detDLoc,dphi,w,elemsLoc,obj.mesh.co);
+                        S = S + aux.S{i};
                     end
+                    %% handle damping matrix
+                    if opt.D==1
+                        aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,elemsLoc,obj.mesh.co);
+                        D = D + aux.D{i};
+                    end
+                    %% handle mass matrix
                     if opt.M==1
-                        M{i}     = obj.mass(pipj,detDLoc,elemsLoc,obj.mesh.co);
+                        aux.M{i} = obj.mass(opt.c(:,i,pIdx),detDLoc,pipj,elemsLoc,obj.mesh.co);
+                        M = M + aux.M{i};
                     end
                 end
+                %% handle volume force matrix
+                if isempty(opt.force)==0
+                     aux.force = obj.load(detD,phi,w,l,opt.force{1},obj.mesh.el,obj.mesh.co);
+                     b = aux.force;
+                end 
             end
-            %% auxiliary variable
+
+            %% surface related integration
+            if intface==1
+                % surface quad data
+                [w,l] = obj.quadrule.data(1);
+                phi   = obj.felem.phi(l);
+                aux.neumannidx=zeros(Nneu,1);
+
+                for i=1:Nneu
+                    [meas,faces,normals,~] = obj.mesh.neumann(opt.neumann{i}.idx);
+                    % [TODO] include the correct function!
+                    %neumann(meas,phi,w,l,g,faces,normals,co)
+                    aux.neumann{i} = obj.neumann(meas{1},phi,w,l,opt.neumann{i}.data,faces{1},normals{1},obj.mesh.co);
+                    aux.neumannidx(i) = opt.neumann{i}.idx;
+                    b = b + aux.neumann{i};
+                end
+            end
+
+            %% Dirichlet data
+            if intdiri==1
+                aux.dirichletidx=zeros(Ndiri,1);
+                for i=1:Ndiri
+                    nodes = obj.mesh.dirichlet(opt.dirichlet{i}.idx);
+                    aux.dirichlet{i} = obj.dirichlet(opt.dirichlet{i}.data,nodes{1},obj.mesh.co);
+                    aux.dirichletidx(i) = opt.dirichlet{i}.idx;
+                    b = b - (S+D+M)*aux.dirichlet{i};
+                end
+            end
+
+            if opt.S
+                asm.S=S;
+            end
+            if opt.D
+                asm.D=D;
+            end
+            if opt.M
+                asm.M=M;
+            end
+            if isempty(opt.force)==0 || isempty(opt.neumann)==0 || isempty(opt.dirichlet)==0
+                asm.b=b;
+            end
+
+
+            %% info variable
             info.time2assemble = toc;
-
-            %% computed structure
-            if opt.S==1; asm.S=S; end
-            if opt.M==1; asm.M=M; end
-            if opt.b==1 || opt.N==1; asm.b=b; end
-
-            aux.detD=detD;
         end
+
         
         function grad=gradu(obj,u)
         %GRADU computes the gradient at DOFs.
@@ -372,15 +631,15 @@ classdef elastic < handle
                         n=(d+3)*(d+4)/2; % degree of point considering for least-squares
                         
                         % statistics and machine learning toolbox
-                        co_idx = knnsearch(obj.mesh.co,obj.mesh.co,'K',n)';
+                        co_idx = knnsearch(squeeze(obj.mesh.co)',squeeze(obj.mesh.co)','K',n)';
                         
                         ui = u          (co_idx(:)  );
-                        xi = obj.mesh.co(co_idx(:),1);
-                        yi = obj.mesh.co(co_idx(:),2);
+                        xi = squeeze(obj.mesh.co(1, :, co_idx(:)));
+                        yi = squeeze(obj.mesh.co(2, :, co_idx(:)));
                         
                         clear co_idx;
                         
-                        Ndof = size(obj.mesh.co,1);
+                        Ndof = size(obj.mesh.co,3);
                         
                         A = [ones(Ndof*n,1), xi, yi, xi.*yi, xi.^2, yi.^2];
                         
@@ -391,9 +650,8 @@ classdef elastic < handle
                         ui_rec = reshape(cell2mat(ui_rec),m,[])';
                         
                         clear A;
-                        
-                        x = obj.mesh.co(:,1);
-                        y = obj.mesh.co(:,2);
+                        x = squeeze(obj.mesh.co(1, :,:));
+                        y = squeeze(obj.mesh.co(2,:, :));
                         
                         grad = [ ui_rec(:,2)+ui_rec(:,4).*y+2*ui_rec(:,5).*x, ...
                             ui_rec(:,3)+ui_rec(:,4).*x+2*ui_rec(:,6).*y ];
@@ -408,23 +666,25 @@ classdef elastic < handle
                         n = 3*m;
                         
                         % statistics and machine learning toolbox
-                        co_idx = knnsearch(obj.mesh.co,obj.mesh.co,'K',n)';
+                       co_idx = knnsearch(squeeze(obj.mesh.co)',squeeze(obj.mesh.co)','K',n)';
                         
                         %                 ui = u (co_idx(:)  );
                         %                 xi = co(co_idx(:),1);
                         %                 yi = co(co_idx(:),2);
                         %                 zi = co(co_idx(:),3);
                         
-                        ui = u          (co_idx(:)  );
-                        xi = obj.mesh.co(co_idx(:),1);
-                        yi = obj.mesh.co(co_idx(:),2);
-                        zi = obj.mesh.co(co_idx(:),3);
                         
+                        
+                        
+                        ui = u          (co_idx(:)  );
+                        xi = squeeze(obj.mesh.co(1, :, co_idx(:)));
+                        yi = squeeze(obj.mesh.co(2, :, co_idx(:)));
+                        zi = squeeze(obj.mesh.co(3, :, co_idx(:)));
                         
                         
                         clear co_idx;
                         
-                        Ndof = size(obj.mesh.co,1);
+                        Ndof = size(obj.mesh.co,3);
                         
                         A = [ones(Ndof*n,1), xi, yi, zi, xi.*yi ,xi.*zi, yi.*zi, xi.^2, yi.^2, zi.^2];
                         
@@ -436,9 +696,9 @@ classdef elastic < handle
                         
                         clear A;
                         
-                        x = obj.mesh.co(:,1);
-                        y = obj.mesh.co(:,2);
-                        z = obj.mesh.co(:,3);
+                        x = squeeze(obj.mesh.co(1, :,:));
+                        y = squeeze(obj.mesh.co(2,:, :));
+                        z = squeeze(obj.mesh.co(3, :,:));
                         
                         grad = [ ui_rec(:,2)+ui_rec(:,5).*y+ui_rec(:,6).*z+2*ui_rec(:,8).*x, ...
                             ui_rec(:,3)+ui_rec(:,5).*x+ui_rec(:,7).*z+2*ui_rec(:,9).*y,...
@@ -462,7 +722,7 @@ classdef elastic < handle
             % tensor. All is performed in Voigt notation: F = I + DU/DX
             %
             
-            F = zeros(obj.mesh.dim*size(obj.mesh.co,1),obj.mesh.dim);
+            F = zeros(obj.mesh.dim*size(obj.mesh.co,3),obj.mesh.dim);
             for i=1:obj.mesh.dim
                 F(i:obj.mesh.dim:end,:) = obj.gradu(u(:,i));
             end
@@ -471,7 +731,7 @@ classdef elastic < handle
             end
         end
         
-        function [E,e,s] = StrainStress(obj,u)
+        function [E,e,s,S] = StrainStress(obj,u)
             
             co     = obj.mesh.co;
             dim    = obj.mesh.dim;
@@ -479,28 +739,48 @@ classdef elastic < handle
             Np     = size(obj.mesh.parts,2);
             s      = cell(Np,1);
             e      = cell(Np,1);
+            S      = zeros(size(u,1), 6);
             
             %% Green's Stain Tensor computation ( E =1/2*(F^T F - I))
-            K= permute(reshape(F,dim,size(co,1),dim),[1 3 2]);
+            K= permute(reshape(F,dim,size(co,3),dim),[1 3 2]);
             I=repmat(1:dim,dim,1);
             J=I';
             EE=reshape(dot(K(I,:,:), K(J,:,:),2),dim,dim,[]);
             %this is the strain now, but in the wrong format so we have to change this
             E=0.5*(reshape(permute(EE,[1,3,2]),[],dim)-repmat(eye(dim,dim),...
-                size(co,1),1));
-            K= permute(reshape(E,dim,size(co,1),dim),[1 3 2]);
+                size(co,3),1));
+            K= permute(reshape(E,dim,size(co,3),dim),[1 3 2]);
             
 
             E = reshape(K,dim*dim, size(u,1))';
+            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %
+            %    Quick and Dirty Workaround for Stress tensor computation
+            %    For more than one material, only the first material
+            %    appearing in the list is considered for the stress
+            %    computation at the interface
+            %
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            for j=1:Np
+                pIdx = obj.mesh.parts{3,j};
+                elems{j,:} = unique(obj.mesh.el(pIdx,:));
+            end
+            [interElems, ~] = intersectAll(elems);
+           
             switch dim
                 case 3
                      %isotropic stress tensor: only the idependen components need to be
                      %computed, this happens by using only the column components
                      %[1 5 9 6 3 2] (i.e. e_{11} e_{22} e_{33} e_{23} e_{13} e_{12}) of every row
                     for i =1:Np
-                        pIdx     = obj.mesh.parts{3,i};
-                        elemsLoc = obj.mesh.el(pIdx,:);
-                        nIdx     = unique(elemsLoc);
+                        if(i>1)
+                            for rowI=1:(i-1)
+                                nIdx =setdiff(elems{i,:}, interElems{rowI, i});
+                            end
+                        else
+                            nIdx = elems{i,:};
+                        end
                         uPart    = u(nIdx, :);
                         e{i} = repmat([ 1, 1, 1, 2, 2, 2],size(uPart,1), 1).*...
                             E(nIdx, [1,5,9,6,3,2]);
@@ -512,6 +792,7 @@ classdef elastic < handle
                             0,               0,           0,          0,  0, obj.mu(i)];
                         
                         s{i}=C*e{i}';
+                        S(nIdx,:) =S(nIdx,:) +s{i}'; 
                     end
                 case 2
                     warning('MATLAB:ofem:elastic:StrainStress:WordsOfWisdom',...
@@ -519,10 +800,17 @@ classdef elastic < handle
                     %isotropic stress tensor: only the idependen components need to be
                     %computed, this happens by using only the column components
                     %[1 4 2] (i.e. e_{11} e_{22} e_{12}) of every row
-                    for i =1:Np
-                        pIdx     = obj.mesh.parts{3,i};
-                        elemsLoc = obj.mesh.el(pIdx,:);
-                        nIdx     = unique(elemsLoc);
+                    for i =1:Np   
+                        if(i>1)
+                            for rowI=1:(i-1)
+                                nIdx =setdiff(elems{i,:}, interElems{rowI, i});
+                            end
+                        else
+                            nIdx = elems{i,:};
+                        end
+%                         pIdx     = obj.mesh.parts{3,i};
+%                         elemsLoc = obj.mesh.el(pIdx,:);
+%                         nIdx     = unique(elemsLoc);
                         uPart    = u(nIdx, :);
                         e{i} = repmat([ 1, 1,2],size(uPart,1), 1).*...
                             E(nIdx, [1,4,2]);
@@ -531,6 +819,7 @@ classdef elastic < handle
                              0,            0,                 obj.mu(i)];
                         
                         s{i}=C*e{i}';
+                        S(nIdx,:) =S(nIdx,:) +s{i}'; 
                     end
                 case 1
             end
