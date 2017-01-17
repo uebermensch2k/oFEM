@@ -686,7 +686,7 @@ classdef elliptic < handle
         % nodes and Nd the dimension of the spatial space.
         %
         
-        switch obj.felem
+        switch obj.fe
             case ofem.finiteelement.P1
                 
                 switch obj.mesh.dim
