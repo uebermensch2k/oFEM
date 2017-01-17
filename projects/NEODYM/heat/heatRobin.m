@@ -48,6 +48,10 @@ function T = heatRobin(x,t,f,varargin)
         domain.h_max = norm(domain.UR-domain.LL)/100;
     end
 
+    if numel(t)==1
+        t=[0,t];
+    end
+
     % check if points lie inside domain
     y=x-repmat(domain.LL,size(x,1),1);
     UR=domain.UR-domain.LL;
@@ -91,9 +95,18 @@ function T = heatRobin(x,t,f,varargin)
     opt.robin = struct('idx',1,'alpha',-coeffs.h,'f',-coeffs.h*coeffs.T_a);
 
     [asm,~,~] = op.assemble(opt);
-    asm
-    info
-    aux
 
+    M       = asm.M;
+    D       = asm.D;
+    S       = asm.S;
+    M_robin = asm.M_robin;
+    b       = asm.b;
+%     DOFs    = asm.DOFs; % no Dirichlet boundary, therefore no DOFs needed
+
+    T0 = coeffs.T_a*ones(size(M,1),1);
+    odeopt=odeset('Mass',M);
+    [t,T] = ode45(@(t,x) b-(S+D+M+M_robin)*x,t,T0,odeopt);
+
+    T
 %     ode45(@(x)
 end

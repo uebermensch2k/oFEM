@@ -647,13 +647,16 @@ classdef elliptic < handle
             end
 
             %% Dirichlet data
+            DOFs = 1:Nc; % NOTE: this is only valid for P1 elements => need an update
             if intdiri==1
                 for i=1:Ndiri
                     nodes = obj.mesh.dirichlet(opt.dirichlet{i}.idx);
+                    DOFs  = setdiff(DOFs,nodes{1});
                     aux.dirichlet{i} = obj.dirichlet(opt.dirichlet{i}.f,nodes{1},obj.mesh.co);
                     b = b - (S+D+M)*aux.dirichlet{i};
                 end
             end
+            asm.DOFs = DOFs;
 
             if opt.S
                 asm.S=S;
