@@ -686,7 +686,7 @@ classdef elliptic < handle
         % nodes and Nd the dimension of the spatial space.
         %
         
-        switch obj.fe
+        switch obj.felem
             case ofem.finiteelement.P1
                 
                 switch obj.mesh.dim
@@ -776,23 +776,27 @@ classdef elliptic < handle
                         n = 3*m;
                         
                         % statistics and machine learning toolbox
-                        co_idx = knnsearch(obj.mesh.co,obj.mesh.co,'K',n)';
+                       
+                        co_idx = knnsearch(squeeze(obj.mesh.co)',squeeze(obj.mesh.co)','K',n)';
                         
                         %                 ui = u (co_idx(:)  );
                         %                 xi = co(co_idx(:),1);
                         %                 yi = co(co_idx(:),2);
                         %                 zi = co(co_idx(:),3);
                         
+                        
+                        
+                        
                         ui = u          (co_idx(:)  );
-                        xi = obj.mesh.co(co_idx(:),1);
-                        yi = obj.mesh.co(co_idx(:),2);
-                        zi = obj.mesh.co(co_idx(:),3);
+                        xi = squeeze(obj.mesh.co(1, :, co_idx(:)));
+                        yi = squeeze(obj.mesh.co(2, :, co_idx(:)));
+                        zi = squeeze(obj.mesh.co(3, :, co_idx(:)));
                         
                         
                         
                         clear co_idx;
                         
-                        Ndof = size(obj.mesh.co,1);
+                        Ndof = size(obj.mesh.co,3);
                         
                         A = [ones(Ndof*n,1), xi, yi, zi, xi.*yi ,xi.*zi, yi.*zi, xi.^2, yi.^2, zi.^2];
                         
@@ -804,9 +808,9 @@ classdef elliptic < handle
                         
                         clear A;
                         
-                        x = obj.mesh.co(:,1);
-                        y = obj.mesh.co(:,2);
-                        z = obj.mesh.co(:,3);
+                        x = squeeze(obj.mesh.co(1, :,:));
+                        y = squeeze(obj.mesh.co(2,:, :));
+                        z = squeeze(obj.mesh.co(3, :,:));
                         
                         grad = [ ui_r(:,2)+ui_r(:,5).*y+ui_r(:,6).*z+2*ui_r(:, 8).*x, ...
                                  ui_r(:,3)+ui_r(:,5).*x+ui_r(:,7).*z+2*ui_r(:, 9).*y,...
@@ -820,6 +824,7 @@ classdef elliptic < handle
                       'Reconstruction of P2 gradient not implemented, yet!');
         end
         end
+
 
         %%
         function plot(obj,u,varargin)
