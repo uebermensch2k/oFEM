@@ -104,7 +104,7 @@ function T = heatRobin(x,t,f,varargin)
 %     DOFs    = asm.DOFs; % no Dirichlet boundary, therefore no DOFs needed
 
     T0 = coeffs.T_a*ones(size(M,1),1);
-    odeopt=odeset('Mass',M);
+    odeopt=odeset('Mass',M,'Stats','on','OutputFcn',@odeplot);
     [t,T] = ode45(@(t,x) b-(S+D+M+M_robin)*x,t,T0,odeopt);
 
     T

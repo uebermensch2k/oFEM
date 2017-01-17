@@ -357,6 +357,9 @@ classdef elliptic < handle
                     opt.S = 0;
                 else
                     aux.S = cell(Np,1);
+                    if ~isfield(opt,'A')
+                        opt.A=1;
+                    end
                 end
 
                 %% damping
@@ -364,6 +367,9 @@ classdef elliptic < handle
                     opt.D=0;
                 else
                     aux.D = cell(Np,1);
+                    if ~isfield(opt,'b')
+                        opt.b=[1;0];
+                    end
                 end
 
                 %% mass
@@ -371,6 +377,9 @@ classdef elliptic < handle
                     opt.M=0;
                 else
                     aux.M = cell(Np,1);
+                    if ~isfield(opt,'c')
+                        opt.c=1;
+                    end
                 end
 
                 %% volume force
@@ -630,6 +639,7 @@ classdef elliptic < handle
                 % surface quad data
                 [w,l] = obj.qr.data(1);
                 phi   = obj.fe.phi(l);
+                pipj  = obj.fe.phiiphij(obj.mesh.dim-1);
 
                 for i=1:Nneu
                     [meas,faces,~] = obj.mesh.neumann(opt.neumann{i}.idx);
@@ -640,7 +650,7 @@ classdef elliptic < handle
                 for i=1:Nro
                     [meas,faces,~] = obj.mesh.neumann(opt.robin{i}.idx);
                     aux.robin{i}   = obj.pressure(meas{1},phi,w,l,opt.robin{i}.f,faces{1},obj.mesh.co);
-                    aux.M_robin{i} = obj.mass(opt.robin{i}.alpha(1),detDLoc,pipj,elemsLoc,obj.mesh.co);
+                    aux.M_robin{i} = obj.mass(opt.robin{i}.alpha(1),meas{1},pipj,faces{1},obj.mesh.co);
                     M_robin        = M_robin + aux.M_robin{i};
                     b = b + aux.robin{i};
                 end
@@ -653,7 +663,7 @@ classdef elliptic < handle
                     nodes = obj.mesh.dirichlet(opt.dirichlet{i}.idx);
                     DOFs  = setdiff(DOFs,nodes{1});
                     aux.dirichlet{i} = obj.dirichlet(opt.dirichlet{i}.f,nodes{1},obj.mesh.co);
-                    b = b - (S+D+M)*aux.dirichlet{i};
+                    b = b - (S+D+M+M_robin)*aux.dirichlet{i};
                 end
             end
             asm.DOFs = DOFs;
