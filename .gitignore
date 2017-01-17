@@ -1,0 +1,204 @@
+#######################################
+# OSX specific
+
+*~
+__MACOSX/
+
+#######################################
+# Trelis specific
+.inp
+
+
+#######################################
+# c++ specific
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+*.ko
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+*.so.*
+
+# Fortran module files
+*.mod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+*.lo
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+
+
+##########################################
+# latex specific
+
+## Core latex/pdflatex auxiliary files:
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+
+## Intermediate documents:
+*.dvi
+*-converted-to.*
+# these rules might exclude image files for figures etc.
+# *.ps
+# *.eps
+# *.pdf
+
+## Bibliography auxiliary files (bibtex/biblatex/biber):
+*.bbl
+*.bcf
+*.blg
+*-blx.aux
+*-blx.bib
+*.brf
+*.run.xml
+
+## Build tool auxiliary files:
+*.fdb_latexmk
+*.synctex
+*.synctex.gz
+*.synctex.gz(busy)
+*.pdfsync
+
+## Auxiliary and intermediate files from other packages:
+
+
+# algorithms
+*.alg
+*.loa
+
+# achemso
+acs-*.bib
+
+# amsthm
+*.thm
+
+# beamer
+*.nav
+*.snm
+*.vrb
+
+#(e)ledmac/(e)ledpar
+*.end
+*.[1-9]
+*.[1-9][0-9]
+*.[1-9][0-9][0-9]
+*.[1-9]R
+*.[1-9][0-9]R
+*.[1-9][0-9][0-9]R
+*.eledsec[1-9]
+*.eledsec[1-9]R
+*.eledsec[1-9][0-9]
+*.eledsec[1-9][0-9]R
+*.eledsec[1-9][0-9][0-9]
+*.eledsec[1-9][0-9][0-9]R
+
+# glossaries
+*.acn
+*.acr
+*.glg
+*.glo
+*.gls
+
+# gnuplottex
+*-gnuplottex-*
+
+# hyperref
+*.brf
+
+# knitr
+*-concordance.tex
+*.tikz
+*-tikzDictionary
+
+# listings
+*.lol
+
+# makeidx
+*.idx
+*.ilg
+*.ind
+*.ist
+
+# minitoc
+*.maf
+*.mtc
+*.mtc[0-9]
+*.mtc[1-9][0-9]
+
+# minted
+_minted*
+*.pyg
+
+# morewrites
+*.mw
+
+# mylatexformat
+*.fmt
+
+# nomencl
+*.nlo
+
+# sagetex
+*.sagetex.sage
+*.sagetex.py
+*.sagetex.scmd
+
+# sympy
+*.sout
+*.sympy
+sympy-plots-for-*.tex/
+
+# TikZ & PGF
+*.dpth
+*.md5
+*.auxlock
+
+# todonotes
+*.tdo
+
+# xindy
+*.xdy
+
+# WinEdt
+*.bak
+*.sav
+
+
+###################################
+# CUDA specific
+
+*.i
+*.ii
+*.gpu
+*.ptx
+*.cubin
+*.fatbin
