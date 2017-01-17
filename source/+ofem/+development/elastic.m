@@ -3,7 +3,7 @@
 classdef elastic < handle
     properties(Access=protected)
         mesh;
-        felem;
+        fe;
         quadrule;
         lambda;
         mu;
@@ -234,10 +234,10 @@ classdef elastic < handle
 
     methods
         %%
-        function obj=elastic(mesh,felem, quadrule)
-%             obj@ofem.laplace(mesh,felem);
+        function obj=elastic(mesh,fe, quadrule)
+%             obj@ofem.laplace(mesh,fe);
             obj.mesh  = mesh;
-            obj.felem = felem;
+            obj.fe = fe;
             obj.quadrule = quadrule;
         end
 
@@ -528,9 +528,9 @@ classdef elastic < handle
                 [w,l] = obj.quadrule.data(0);
 
                 % shape functions related stuff
-                pipj  = obj.felem.phiiphij(obj.mesh.dim);
-                phi   = obj.felem.phi(l);
-                dphi  = obj.felem.dphi(l);
+                pipj  = obj.fe.phiiphij(obj.mesh.dim);
+                phi   = obj.fe.phi(l);
+                dphi  = obj.fe.dphi(l);
                 [DinvT,detD] = obj.mesh.jacobiandata;
                 aux.detD   = detD;
 
@@ -568,7 +568,7 @@ classdef elastic < handle
             if intface==1
                 % surface quad data
                 [w,l] = obj.quadrule.data(1);
-                phi   = obj.felem.phi(l);
+                phi   = obj.fe.phi(l);
                 aux.neumannidx=zeros(Nneu,1);
 
                 for i=1:Nneu
@@ -619,7 +619,7 @@ classdef elastic < handle
         % nodes and Nd the dimension of the spatial space.
         %
         
-        switch obj.felem
+        switch obj.fe
             case ofem.finiteelement.P1
                 
                 switch obj.mesh.dim
