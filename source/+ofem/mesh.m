@@ -1249,7 +1249,64 @@ classdef mesh < handle
                   'XDMF file exporter is under development!');
         end
 
-%         function info=printfinfo(obj)
+        function info=info(obj)
+            switch obj.type
+                case 'edge'
+                    %% edge
+                    node = permute(double(obj.co),[3,1,2]);
+                    edge = node(obj.el(:,2),:)-node(obj.el(:,1),:);
+                    edge = squeeze(sqrt(dot(edge,edge,2)));
+%                     info.edge.N   = numel(edge);
+                    info.edge.max = max(edge);
+                    info.edge.min = min(edge);
+                    info.edge.ave = mean(edge);
+ 
+                case 'tri'
+                    %% triangle
+                    node = permute(double(obj.co),[3,1,2]);
+                    edge = [ ...
+                        node(obj.el(:,2),:)-node(obj.el(:,1),:); ...
+                        node(obj.el(:,3),:)-node(obj.el(:,2),:); ...
+                        node(obj.el(:,1),:)-node(obj.el(:,3),:); ...
+                        ];
+                    edge = sqrt(dot(edge,edge,2));
+%                     info.edge.N   = numel(edge);
+                    info.edge.max = max(edge);
+                    info.edge.min = min(edge);
+                    info.edge.ave = mean(edge);
+ 
+                case 'quad'
+                    %% quadrilateral
+                    warning('ofem:mesh:print_info:notImplemented',...
+                            'No info for quadrilateral meshes so far!!');
+ 
+                case 'tet'
+                    %% tetrahedron
+                    node = permute(double(obj.co),[3,1,2]);
+                    edge = [ ...
+                        node(obj.el(:,2),:)-node(obj.el(:,1),:); ...
+                        node(obj.el(:,3),:)-node(obj.el(:,1),:); ...
+                        node(obj.el(:,4),:)-node(obj.el(:,1),:); ...
+                        node(obj.el(:,3),:)-node(obj.el(:,2),:); ...
+                        node(obj.el(:,4),:)-node(obj.el(:,2),:); ...
+                        node(obj.el(:,4),:)-node(obj.el(:,3),:); ...
+                        ];
+                    edge = squeeze(sqrt(dot(edge,edge,2)));
+%                     info.edge.N   = numel(edge);
+                    info.edge.max = max(edge);
+                    info.edge.min = min(edge);
+                    info.edge.ave = mean(edge);
+ 
+                case 'hex'
+                    %% hexahedron
+                    warning('ofem:mesh:print_info:notImplemented',...
+                            'No info for hexahedral meshes so far!!');
+ 
+                otherwise
+                    error('ofem:mesh:print_info:Unspecified',...
+                          'Unspecified error found');
+            end
+
 %             edge = obj.el(:,[]
 %             elem     = sortelem3(elem);
 %             [~,edge] = dof3edge (elem);
@@ -1282,7 +1339,7 @@ classdef mesh < handle
 %             info.tet.min = min(volume);
 %             info.tet.max = max(volume);
 %             info.tet.ave = sum(volume)/NT;
-%         end
+        end
 
         %%
         function h=show(obj)

@@ -1,7 +1,9 @@
-function T_xt = heatRobin(xpts,tpts,f,T0,varargin)
+function T = heatRobin(xpts,tpts,f,T0,varargin)
 %heatRobin computes solution of heat equation
 %
-% U=heatRobin(x,t,f,coeffs), given an array of function handles f, computes
+% T=
+%
+% U=heatRobin(x,t,f,T0,coeffs), given an array of function handles f, computes
 % for each function handle f_i the solution U at spatial points x and time
 % instances t. The underlying PDE is a convection-diffusion equation
 %
@@ -32,7 +34,7 @@ function T_xt = heatRobin(xpts,tpts,f,T0,varargin)
 
     p=inputParser;
     addRequired(p,'x',@(x) validateattributes(x,{'numeric'},{'nonempty','real','2d'}));
-    addRequired(p,'t',@(x) validateattributes(x,{'numeric'},{'nonempty','real','vector','increasing'}));
+    addRequired(p,'t',@(x) validateattributes(x,{'numeric'},{'nonempty','real','vector','increasing','>=',0}));
     addRequired(p,'f',@(x) validateattributes(x,{'function_handle'},{'nonempty','vector'}));
     addRequired(p,'coeffs',@(x) validateattributes(x,{'struct'},{'nonempty'}));
     addOptional(p,'domain',struct('LL',[0,0],'UR',[1,1],'h_max',1/20),@(x) validateattributes(x,{'struct'},{'nonempty'}));
@@ -79,16 +81,6 @@ function T_xt = heatRobin(xpts,tpts,f,T0,varargin)
     y=xpts-repmat(domain.LL,size(xpts,1),1);
     UR=domain.UR-domain.LL;
     if ~all(y>=0 & y<=repmat(UR,size(xpts,1),1))
-%         if any(strcmp(p.UsingDefaults,'domain'))
-%             % resize domain
-%             domain.LL=[min(x,[],1),min(x,[],2)];
-%             domain.UR=[max(x,[],1),max(x,[],2)];
-%             offset=0.1*(domain.UR-domain.LL);
-%             domain.LL=domain.LL-offset*[1,1];
-%             domain.UR=domain.UR+offset*[1,1];
-%         else
-%             error('heatRobin:argchk','Given points must lie inside ');
-%         end
         error('heatRobin:argchk','Given points must lie inside ');
     end
     clear y UR;
@@ -100,6 +92,9 @@ function T_xt = heatRobin(xpts,tpts,f,T0,varargin)
     for i=1:k
         mesh.uniform_refine();
     end
+
+    info = mesh.info;
+    dx = info.edge.max;
 
     % assign finit element
     fe = ofem.finiteelement.P1;
@@ -123,7 +118,7 @@ function T_xt = heatRobin(xpts,tpts,f,T0,varargin)
     opt.A     = coeffs.k;
     % damping matrix
     opt.D     = 1; % compute damping
-    opt.b     = coeffs.v;
+    opt.b     = coeffs.v*coeffs.c_P*coeffs.rho;
     % Robin conditions
     opt.robin.idx   = 1;
     opt.robin.alpha = coeffs.h;
@@ -138,27 +133,90 @@ function T_xt = heatRobin(xpts,tpts,f,T0,varargin)
     M_robin = asm.M_robin;
     b       = asm.b;
     DOFs    = asm.DOFs; % no Dirichlet boundary, therefore no DOFs needed
+    A       = S(DOFs,DOFs)+D(DOFs,DOFs)+M_robin(DOFs,DOFs);
+%     clear S D M_robin;
 
     % initial condition
     T0 = squeeze(permute(double(T0(mesh.co)),[3,1,2]));
 
-    odeopt = odeset('Mass',M,'Stats','on','NonNegative',1:size(M,1));
-    A      = S(DOFs,DOFs)+D(DOFs,DOFs)+M_robin(DOFs,DOFs);
+%     if max(norm(coeffs.v))==0
+%         dt=0.1;
+%     else
+%         dt = dx/(2*max(norm(coeffs.v)*coeffs.c_P*coeffs.rho));
+%     end
+% 
+%     % solve
+%     A = S(DOFs,DOFs)+D(DOFs,DOFs)+M(DOFs,DOFs)/dt+M_robin(DOFs,DOFs);
+% 
+%     tt = linspace(tpts(1),tpts(end),(tpts(end)-tpts(1))/dt);
+%     T_t=zeros(numel(DOFs),numel(tt));
+%     T_t(DOFs,1)=T0;
+%     for k=2:numel(tt)
+%         T_t(DOFs,k) = A\(b+M(DOFs,DOFs)/dt*T_t(:,k-1));
+%     end
+% 
+%     TR     = triangulation(mesh.el,permute(double(mesh.co),[3,1,2]));
+%     [i,l]  = pointLocation(TR,xpts);
+%     clear TR;
+%     T      = reshape(T_t(mesh.el(i,:),:),[],size(mesh.el,2),numel(tt));
+%     T      = reshape(dot(T,repmat(fe.phi(l)',1,1,numel(tt)),2),[],numel(tt));
+% 
+%     visualize=1;
+%     if visualize
+%         figure
+%         view(50,45);
+%         xlabel('x-axis [m]');
+%         ylabel('y-axis [m]');
+%         zlabel('T [K]');
+%         hold on;
+%         for i=1:numel(tt)
+%             cla;
+%             zlim([min(T_t(:,i))-eps(min(T_t(:,i))),max(T_t(:,i))+eps(max(T_t(:,i)))]);
+%             trimesh(mesh.el,double(mesh.co(1,1,:)),double(mesh.co(2,1,:)),T_t(:,i));
+%             plot3(xpts(:,1),xpts(:,2),T(:,i),'r*');
+%             title(sprintf('t=%f',tt(i)));
+%             pause(0.1);
+%         end
+%     end
+
+    
+
+    % solve
+    if max(norm(coeffs.v))~=0
+        odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1),'MaxStep',dx^2/(max(norm(coeffs.v)*coeffs.c_P*coeffs.rho)));
+    else
+        odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1));
+    end
+%     odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on');
+%     [~,T_t]    = ode45(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
     sol    = ode45(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
-    T_xt   = deval(sol,tpts);
+    clear M b;
+    T_t    = deval(sol,tpts);
+    clear sol DOFs;
+
+    TR     = triangulation(mesh.el,permute(double(mesh.co),[3,1,2]));
+    [i,l]  = pointLocation(TR,xpts);
+    clear TR;
+    T      = reshape(T_t(mesh.el(i,:),:),[],size(mesh.el,2),numel(tpts));
+    T      = reshape(dot(T,repmat(fe.phi(l)',1,1,numel(tpts)),2),[],numel(tpts));
 
     visualize=1;
     if visualize
         figure
+        view(50,45);
+        xlabel('x-axis [m]');
+        ylabel('y-axis [m]');
+        zlabel('T [K]');
+        hold on;
         for i=1:numel(tpts)
-            trimesh(mesh.el,double(mesh.co(1,1,:)),double(mesh.co(2,1,:)),T_xt(:,i));
+            cla;
+            zlim([min(T_t(:,i))-eps(min(T_t(:,i))),max(T_t(:,i))+eps(max(T_t(:,i)))]);
+            trimesh(mesh.el,double(mesh.co(1,1,:)),double(mesh.co(2,1,:)),T_t(:,i));
+            plot3(xpts(:,1),xpts(:,2),T(:,i),'r*');
             title(sprintf('t=%f',tpts(i)));
             pause(0.1);
         end
     end
     
-    TR=triangulation(mesh.el,permute(double(mesh.co),[3,1,2]));
-    [elidx,lambda] = pointLocation(TR,xpts);
-    T_xt = reshape(T_xt(mesh.el(elidx,:),:),[],size(mesh.el,2),numel(tpts));
-    T_xt = squeeze(dot(T_xt,repmat(fe.phi(lambda)',1,1,numel(tpts)),2));    
+    
 end
