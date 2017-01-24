@@ -16,12 +16,12 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
 % with specific heat c_P, dnesity rho, thermal conductivity k, wind
 % velocity v, heat transfer coefficient h and ambient temperature T_a.
 %
-% By default, a unit square is assumed as the domain and air as medium with
+% By default, a unit square is assumed as the domain and oak as medium with
 % following characteristics:
-%   - c_P = 1005 J/(kg K)  (specific heat)
-%   - rho = 1.2 kg/m^3     (density)
-%   - k   = 0.0257 W/(m K) (thermal conductivity)
-% and ambient temperature T_a=293.15 K (i.e., 20 degree C).
+%   - c_P = 0.17 J/(kg K)  (specific heat)
+%   - rho = 750 kg/m^3     (density)
+%   - k   = 2400 W/(m K) (thermal conductivity)
+% and ambient temperature T_a=298.15 K (i.e., 25 degree C).
 % However, the wind velocity v and heat transfer coefficient alpha need to
 % explicitly be specified. All coeffients are assumed as fields in the
 % structure coeffs.
@@ -38,7 +38,6 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
     addRequired(p,'f',@(x) validateattributes(x,{'function_handle'},{'nonempty','vector'}));
     addRequired(p,'coeffs',@(x) validateattributes(x,{'struct'},{'nonempty'}));
     addOptional(p,'domain',struct('LL',[0,0],'UR',[1,1],'h_max',1/20),@(x) validateattributes(x,{'struct'},{'nonempty'}));
-%     addOptional(p,'coeffs',struct('c_P',1005,'rho',1.2,'D',0.0257,'a',[5.1;0],'h',1,'T_a',293.15),@(x) validateattributes(x,{'struct'},{'nonempty'}));
     parse(p,xpts,tpts,f,varargin{:});
 
     domain=p.Results.domain;
@@ -48,16 +47,16 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
         error('heatRobin:argchk','Input argument ''coeffs'' need to be a structure with containing at least the fields ''v'', ''h''');
     else
         if ~isfield(coeffs,'c_P')
-            coeffs.c_P = 1005;
+            coeffs.c_P = 0.17;
         end
         if ~isfield(coeffs,'rho')
-            coeffs.rho = 1.2;
+            coeffs.rho = 750;
         end
         if ~isfield(coeffs,'k')
-            coeffs.k = 0.0257;
+            coeffs.k = 2400;
         end
         if ~isfield(coeffs,'T_a')
-            coeffs.T_a = 293.15;
+            coeffs.T_a = 298.15;
         end
     end
 
@@ -93,8 +92,8 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
         mesh.uniform_refine();
     end
 
-    info = mesh.info;
-    dx = info.edge.max;
+%     info = mesh.info;
+%     dx = info.edge.max;
 
     % assign finit element
     fe = ofem.finiteelement.P1;
@@ -107,7 +106,7 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
 
     % Be careful, the mass matrix comes from the time term. Thus do not
     % include mass in Dirichlet conditions.
-    opt = struct('M',1,'c',coeffs.c_P*coeffs.rho);
+    opt = struct('M',1,'c',1);
     [asm,~,~] = op.assemble(opt);
     M       = asm.M;
     clear opt;
@@ -115,16 +114,16 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
     
     % stiffness matrix
     opt.S     = 1;
-    opt.A     = coeffs.k;
+    opt.A     = coeffs.k/(coeffs.c_P*coeffs.rho);
     % damping matrix
     opt.D     = 1; % compute damping
-    opt.b     = coeffs.v*coeffs.c_P*coeffs.rho;
+    opt.b     = coeffs.v;
     % Robin conditions
     opt.robin.idx   = 1;
     opt.robin.alpha = coeffs.h;
     opt.robin.f     = coeffs.h*coeffs.T_a;
     % force
-    opt.force       = f;
+    opt.force       = @(x) f(x)./(coeffs.c_P*coeffs.rho);
     % do the job
     [asm,~,~] = op.assemble(opt);
 
@@ -139,56 +138,13 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
     % initial condition
     T0 = squeeze(permute(double(T0(mesh.co)),[3,1,2]));
 
-%     if max(norm(coeffs.v))==0
-%         dt=0.1;
-%     else
-%         dt = dx/(2*max(norm(coeffs.v)*coeffs.c_P*coeffs.rho));
-%     end
-% 
-%     % solve
-%     A = S(DOFs,DOFs)+D(DOFs,DOFs)+M(DOFs,DOFs)/dt+M_robin(DOFs,DOFs);
-% 
-%     tt = linspace(tpts(1),tpts(end),(tpts(end)-tpts(1))/dt);
-%     T_t=zeros(numel(DOFs),numel(tt));
-%     T_t(DOFs,1)=T0;
-%     for k=2:numel(tt)
-%         T_t(DOFs,k) = A\(b+M(DOFs,DOFs)/dt*T_t(:,k-1));
-%     end
-% 
-%     TR     = triangulation(mesh.el,permute(double(mesh.co),[3,1,2]));
-%     [i,l]  = pointLocation(TR,xpts);
-%     clear TR;
-%     T      = reshape(T_t(mesh.el(i,:),:),[],size(mesh.el,2),numel(tt));
-%     T      = reshape(dot(T,repmat(fe.phi(l)',1,1,numel(tt)),2),[],numel(tt));
-% 
-%     visualize=1;
-%     if visualize
-%         figure
-%         view(50,45);
-%         xlabel('x-axis [m]');
-%         ylabel('y-axis [m]');
-%         zlabel('T [K]');
-%         hold on;
-%         for i=1:numel(tt)
-%             cla;
-%             zlim([min(T_t(:,i))-eps(min(T_t(:,i))),max(T_t(:,i))+eps(max(T_t(:,i)))]);
-%             trimesh(mesh.el,double(mesh.co(1,1,:)),double(mesh.co(2,1,:)),T_t(:,i));
-%             plot3(xpts(:,1),xpts(:,2),T(:,i),'r*');
-%             title(sprintf('t=%f',tt(i)));
-%             pause(0.1);
-%         end
-%     end
-
-    
-
     % solve
-    if max(norm(coeffs.v))~=0
-        odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1),'MaxStep',dx^2/(max(norm(coeffs.v)*coeffs.c_P*coeffs.rho)));
-    else
-        odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1));
-    end
-%     odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on');
-%     [~,T_t]    = ode45(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
+%     if max(norm(coeffs.v))~=0
+%         odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1),'MaxStep',dx^2/(max(norm(coeffs.v))));
+%     else
+%         odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1));
+%     end
+    odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1));
     sol    = ode45(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
     clear M b;
     T_t    = deval(sol,tpts);
