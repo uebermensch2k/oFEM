@@ -7,13 +7,13 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
 % for each function handle f_i the solution U at spatial points x and time
 % instances t. The underlying PDE is a convection-diffusion equation
 %
-%   c_P rho \frac{\partial T}{\partial t}-\nabla\cdot(k\nabla T)+v\cdot\nabla T=s
+%   c_P rho \left(\frac{\partial T}{\partial t}+v\cdot\nabla T\right)-\nabla\cdot(k\nabla T)=s
 %
 % with boundary conditions
 %
-%   \frac{\partial T}{\partia n} = h(T-T_a),
+%   -k\frac{\partial T}{\partia n} = h(T-T_a),
 %
-% with specific heat c_P, dnesity rho, thermal conductivity k, wind
+% with specific heat c_P, density rho, thermal conductivity k, wind
 % velocity v, heat transfer coefficient h and ambient temperature T_a.
 %
 % By default, a unit square is assumed as the domain and oak as medium with
@@ -56,7 +56,11 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
             coeffs.k = 2400;
         end
         if ~isfield(coeffs,'T_a')
-            coeffs.T_a = 298.15;
+            coeffs.T_a = 298.15*ones(4,1);
+        elseif ~isscalar(coeffs.T_a) && numel(coeffs.T_a)~=4
+            error('heatRobin:argchk','Input argument ''coeffs.T_a'' need to be a scalar or a vector of length 4');
+        elseif isscalar(coeffs.T_a)
+            coeffs.T_a=coeffs.T_a*ones(4,1);
         end
     end
 
@@ -87,6 +91,15 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
     % create mesh
     mesh=ofem.mesh;
     mesh.hypercube(domain.LL,domain.UR-domain.LL);
+    % hypercube creates a single boundary, we need all the four sides to
+    % point to different boundaries
+    mesh.bd = {...
+        'left' ,'lower', 'right', 'upper'; ...
+        {'left_E1' ,'left_E2' ,'left_E3' ; [],[], 1}, ...
+        {'lower_E1','lower_E2','lower_E3';  1,[],[]}, ...
+        {'right_E1','right_E2','right_E3';  2,[],[]}, ...
+        {'upper_E1','upper_E2','upper_E3'; [], 2,[]} ...
+               };
     k=ceil(log2(norm(domain.UR-domain.LL)/domain.h_max));
     for i=1:k
         mesh.uniform_refine();
@@ -106,24 +119,29 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
 
     % Be careful, the mass matrix comes from the time term. Thus do not
     % include mass in Dirichlet conditions.
-    opt = struct('M',1,'c',1);
+    opt = struct('M',1,'c',coeffs.c_P*coeffs.rho);
+%     opt = struct('M',1,'c',1);
     [asm,~,~] = op.assemble(opt);
-    M       = asm.M;
+    M         = asm.M;
     clear opt;
 
     
     % stiffness matrix
     opt.S     = 1;
-    opt.A     = coeffs.k/(coeffs.c_P*coeffs.rho);
+    opt.A     = coeffs.k;
     % damping matrix
     opt.D     = 1; % compute damping
-    opt.b     = coeffs.v;
+    opt.b     = coeffs.v*coeffs.c_P*coeffs.rho;
     % Robin conditions
-    opt.robin.idx   = 1;
-    opt.robin.alpha = coeffs.h;
-    opt.robin.f     = coeffs.h*coeffs.T_a;
+    opt.robin{1} = struct('idx',1,'alpha',coeffs.h,'f',coeffs.h*coeffs.T_a(1));
+    opt.robin{2} = struct('idx',2,'alpha',coeffs.h,'f',coeffs.h*coeffs.T_a(2));
+    opt.robin{3} = struct('idx',3,'alpha',coeffs.h,'f',coeffs.h*coeffs.T_a(3));
+    opt.robin{4} = struct('idx',4,'alpha',coeffs.h,'f',coeffs.h*coeffs.T_a(4));
+%     opt.robin.idx   = 1;
+%     opt.robin.alpha = coeffs.h;
+%     opt.robin.f     = coeffs.h*coeffs.T_a;
     % force
-    opt.force       = @(x) f(x)./(coeffs.c_P*coeffs.rho);
+    opt.force       = @(x) f(x);
     % do the job
     [asm,~,~] = op.assemble(opt);
 

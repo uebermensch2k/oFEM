@@ -440,7 +440,7 @@ classdef elliptic < handle
 
                 %% volume force
                 if ~isfield(opt,'force')
-                    opt.force=[];
+                    opt.force={};
                 else
                     aux.force = cell(Np,1);
                 end

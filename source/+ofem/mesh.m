@@ -8,7 +8,7 @@ classdef mesh < handle
         mu0  = 1.2566370614e-6;    % in kg*m*s^-2*A^-2
     end
 
-    properties (SetAccess=protected)
+    properties (SetAccess=public)
         % dimension of the space described by the mesh
         dim;
 
@@ -268,7 +268,7 @@ classdef mesh < handle
         %
         %  hypercube(x0,extent) additionally sets the extent of the
         %  hypercube. extent can either be a scalar, in which case the
-        %  hypercube has all equal lengths, or must match the dimension of
+        %  hypercube has all lengths equal, or must match the dimension of
         %  x0.
         %
         %  In 2D, the mesh consists of two triangles, in 3D it consists of
@@ -426,7 +426,9 @@ classdef mesh < handle
                     obj.parts(3,:)=cellfun(@(x) [x;x+Nel],obj.parts(3,:),'UniformOutput',false);
 
                     % update boundaries
-                    obj.bd{2,:}(2,2)=cellfun(@(x) x+Nel,obj.bd{2,:}(2,2),'UniformOutput',false);
+                    for i=1:numel(obj.bd(2,:))
+                        obj.bd{2,i}{2,2}=obj.bd{2,i}{2,2}+Nel;
+                    end
 
                 case 'tri'
                     %% triangle
@@ -442,9 +444,11 @@ classdef mesh < handle
                     obj.parts(3,:)=cellfun(@(x) [x;x+Nel;x+2*Nel;x+3*Nel],obj.parts(3,:),'UniformOutput',false);
 
                     % update boundaries
-                    obj.bd{2,:}(2,1)=cellfun(@(x) [x      ; x+  Nel],obj.bd{2,:}(2,1),'UniformOutput',false);
-                    obj.bd{2,:}(2,2)=cellfun(@(x) [x+  Nel; x+2*Nel],obj.bd{2,:}(2,2),'UniformOutput',false);
-                    obj.bd{2,:}(2,3)=cellfun(@(x) [x+2*Nel; x      ],obj.bd{2,:}(2,3),'UniformOutput',false);
+                    for i=1:numel(obj.bd(2,:))
+                        obj.bd{2,i}{2,1}=[obj.bd{2,i}{2,1}      ; obj.bd{2,i}{2,1}+  Nel];
+                        obj.bd{2,i}{2,2}=[obj.bd{2,i}{2,2}+  Nel; obj.bd{2,i}{2,2}+2*Nel];
+                        obj.bd{2,i}{2,3}=[obj.bd{2,i}{2,3}+2*Nel; obj.bd{2,i}{2,3}      ];
+                    end
 
                 case 'quad'
                     %% quadrilateral
@@ -475,10 +479,12 @@ classdef mesh < handle
                     % S2: 1, 2, 4
                     % S3: 2, 3, 4
                     % S4: 1, 3, 4
-                    obj.bd{2,:}(2,1)=cellfun(@(x) [x      ; x+1*Nel; x+2*Nel; x+5*Nel],obj.bd{2,:}(2,1),'UniformOutput',false);
-                    obj.bd{2,:}(2,2)=cellfun(@(x) [x      ; x+1*Nel; x+3*Nel; x+4*Nel],obj.bd{2,:}(2,2),'UniformOutput',false);
-                    obj.bd{2,:}(2,3)=cellfun(@(x) [x+1*Nel; x+2*Nel; x+3*Nel; x+6*Nel],obj.bd{2,:}(2,3),'UniformOutput',false);
-                    obj.bd{2,:}(2,4)=cellfun(@(x) [x      ; x+2*Nel; x+3*Nel; x+7*Nel],obj.bd{2,:}(2,4),'UniformOutput',false);
+                    for i=1:numel(obj.bd(2,:))
+                        obj.bd{2,i}{2,1}=[obj.bd{2,i}{2,1}      ; obj.bd{2,i}{2,1}+1*Nel; obj.bd{2,i}{2,1}+2*Nel; obj.bd{2,i}{2,1}+5*Nel];
+                        obj.bd{2,i}{2,2}=[obj.bd{2,i}{2,2}      ; obj.bd{2,i}{2,2}+1*Nel; obj.bd{2,i}{2,2}+3*Nel; obj.bd{2,i}{2,2}+4*Nel];
+                        obj.bd{2,i}{2,3}=[obj.bd{2,i}{2,3}+1*Nel; obj.bd{2,i}{2,3}+2*Nel; obj.bd{2,i}{2,3}+3*Nel; obj.bd{2,i}{2,3}+6*Nel];
+                        obj.bd{2,i}{2,4}=[obj.bd{2,i}{2,4}      ; obj.bd{2,i}{2,4}+2*Nel; obj.bd{2,i}{2,4}+3*Nel; obj.bd{2,i}{2,4}+7*Nel];
+                    end
 
                 case 'hex'
                     %% hexahedron
