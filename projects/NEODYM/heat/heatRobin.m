@@ -1,4 +1,4 @@
-function T = heatRobin(xpts,tpts,f,T0,varargin)
+function [T,mesh] = heatRobin(xpts,tpts,f,T0,varargin)
 %heatRobin computes solution of heat equation
 %
 % T=
@@ -37,7 +37,7 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
     addRequired(p,'t',@(x) validateattributes(x,{'numeric'},{'nonempty','real','vector','increasing','>=',0}));
     addRequired(p,'f',@(x) validateattributes(x,{'function_handle'},{'nonempty','vector'}));
     addRequired(p,'coeffs',@(x) validateattributes(x,{'struct'},{'nonempty'}));
-    addOptional(p,'domain',struct('LL',[0,0],'UR',[1,1],'h_max',1/20),@(x) validateattributes(x,{'struct'},{'nonempty'}));
+    addOptional(p,'domain',struct('LL',[0,0],'UR',[1,1],'h_max',1/20),@(x) validateattributes(x,{'struct','ofem.mesh'},{'nonempty'}));
     parse(p,xpts,tpts,f,varargin{:});
 
     domain=p.Results.domain;
@@ -64,56 +64,63 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
         end
     end
 
-    if ~all(isfield(domain,{'LL','UR'}))
-        error('heatRobin:argchk','Input argument domain need to be a structure with fields ''LL'' and ''UR''');
-    else
-        if numel(domain.LL)~=size(xpts,2)
-            error('heatRobin:argchk','Computational domain is %d-d, but spatial query points are %d-d.',numel(domain.LL),size(xpts,2));
+    if isstruct(domain)
+        if ~all(isfield(domain,{'LL','UR'}))
+            error('heatRobin:argchk','Input argument domain need to be a structure with fields ''LL'' and ''UR''');
+        else
+            if numel(domain.LL)~=size(xpts,2)
+                error('heatRobin:argchk','Computational domain is %d-d, but spatial query points are %d-d.',numel(domain.LL),size(xpts,2));
+            end
         end
-    end
 
-    if ~isfield(domain,'h_max')
-        domain.h_max = norm(domain.UR-domain.LL)/20;
+        if ~isfield(domain,'h_max')
+            domain.h_max = norm(domain.UR-domain.LL)/20;
+        end
+
+        % create mesh
+        mesh=ofem.mesh;
+        mesh.hypercube(domain.LL,domain.UR-domain.LL);
+        % hypercube creates a single boundary, we need all the four sides to
+        % point to different boundaries
+        mesh.bd = {...
+            'left' ,'lower', 'right', 'upper'; ...
+            {'left_E1' ,'left_E2' ,'left_E3' ; [],[], 1}, ...
+            {'lower_E1','lower_E2','lower_E3';  1,[],[]}, ...
+            {'right_E1','right_E2','right_E3';  2,[],[]}, ...
+            {'upper_E1','upper_E2','upper_E3'; [], 2,[]} ...
+                   };
+        k=ceil(log2(norm(domain.UR-domain.LL)/domain.h_max));
+
+    %     mesh.bd = {...
+    %         'left' ,'lower', 'right', 'upper'; ...
+    %         {'left_E1' ,'left_E2' ,'left_E3' ; 4,[],[]}, ...
+    %         {'lower_E1','lower_E2','lower_E3'; 1,[],[]}, ...
+    %         {'right_E1','right_E2','right_E3'; 2,[],[]}, ...
+    %         {'upper_E1','upper_E2','upper_E3'; 3,[],[]} ...
+    %                };
+    %     k=ceil(log2(max(domain.UR-domain.LL)/domain.h_max));
+
+    
+        % check if points lie inside domain
+        y=xpts-repmat(domain.LL,size(xpts,1),1);
+        UR=domain.UR-domain.LL;
+        if ~all(y>=0 & y<=repmat(UR,size(xpts,1),1))
+            error('heatRobin:argchk','Given points must lie inside ');
+        end
+        clear y UR;
+
+        for i=1:k
+            mesh.uniform_refine();
+        end
+    else
+        mesh=domain;
     end
 
     if numel(tpts)==1
         tpts=[0,tpts];
     end
 
-    % check if points lie inside domain
-    y=xpts-repmat(domain.LL,size(xpts,1),1);
-    UR=domain.UR-domain.LL;
-    if ~all(y>=0 & y<=repmat(UR,size(xpts,1),1))
-        error('heatRobin:argchk','Given points must lie inside ');
-    end
-    clear y UR;
-
-    % create mesh
-    mesh=ofem.mesh;
-    mesh.hypercube(domain.LL,domain.UR-domain.LL);
-    % hypercube creates a single boundary, we need all the four sides to
-    % point to different boundaries
-    mesh.bd = {...
-        'left' ,'lower', 'right', 'upper'; ...
-        {'left_E1' ,'left_E2' ,'left_E3' ; [],[], 1}, ...
-        {'lower_E1','lower_E2','lower_E3';  1,[],[]}, ...
-        {'right_E1','right_E2','right_E3';  2,[],[]}, ...
-        {'upper_E1','upper_E2','upper_E3'; [], 2,[]} ...
-               };
-    k=ceil(log2(norm(domain.UR-domain.LL)/domain.h_max));
-
-%     mesh.bd = {...
-%         'left' ,'lower', 'right', 'upper'; ...
-%         {'left_E1' ,'left_E2' ,'left_E3' ; 4,[],[]}, ...
-%         {'lower_E1','lower_E2','lower_E3'; 1,[],[]}, ...
-%         {'right_E1','right_E2','right_E3'; 2,[],[]}, ...
-%         {'upper_E1','upper_E2','upper_E3'; 3,[],[]} ...
-%                };
-%     k=ceil(log2(max(domain.UR-domain.LL)/domain.h_max));
-
-    for i=1:k
-        mesh.uniform_refine();
-    end
+    
 
 %     info = mesh.info;
 %     dx = info.edge.max;
@@ -153,12 +160,14 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
     % force
     opt.force       = @(x) f(x);
     % do the job
-    [asm,~,~] = op.assemble(opt);
+    [asm,~,aux] = op.assemble(opt);
 
     S       = asm.S;
     D       = asm.D;
     M_robin = asm.M_robin;
-    b       = asm.b;
+%     b       = asm.b;
+    b_f       = aux.force{1};
+    b_r     = aux.robin{1}+aux.robin{2}+aux.robin{3}+aux.robin{4};
     DOFs    = asm.DOFs; % no Dirichlet boundary, therefore no DOFs needed
     A       = S(DOFs,DOFs)+D(DOFs,DOFs)+M_robin(DOFs,DOFs);
 %     clear S D M_robin;
@@ -175,7 +184,7 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
 %     odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1));
     odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on');
 %     sol    = ode45(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
-    sol    = ode15s(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
+    sol    = ode15s(@(t,x) (t<=0.5)*b_f(DOFs)+b_r(DOFs)-A*x,tpts,T0(DOFs),odeopt);
 %     sol    = ode23s(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
     clear M b;
     T_t    = deval(sol,tpts);
