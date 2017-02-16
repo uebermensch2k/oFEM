@@ -234,7 +234,8 @@ classdef elliptic < handle
                 F = F + f(X)*(w(q)*phi(:,q)');
             end
 
-            F = F*detD;
+%             F = F*detD;
+            F = permute(double(F*detD),[3,2,1]);
             b = sparse(el(:),1,F(:),Nc,1);
         end
 
@@ -270,7 +271,8 @@ classdef elliptic < handle
                 F = F + g(X)*(w(q)*phi(:,q)');
             end
 
-            F = F*meas;
+%             F = F*meas;
+            F = permute(double(F*meas),[3,2,1]);
             b = sparse(faces(:),1,F(:),Nc,1);
         end
 

@@ -101,6 +101,16 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
         {'upper_E1','upper_E2','upper_E3'; [], 2,[]} ...
                };
     k=ceil(log2(norm(domain.UR-domain.LL)/domain.h_max));
+
+%     mesh.bd = {...
+%         'left' ,'lower', 'right', 'upper'; ...
+%         {'left_E1' ,'left_E2' ,'left_E3' ; 4,[],[]}, ...
+%         {'lower_E1','lower_E2','lower_E3'; 1,[],[]}, ...
+%         {'right_E1','right_E2','right_E3'; 2,[],[]}, ...
+%         {'upper_E1','upper_E2','upper_E3'; 3,[],[]} ...
+%                };
+%     k=ceil(log2(max(domain.UR-domain.LL)/domain.h_max));
+
     for i=1:k
         mesh.uniform_refine();
     end
@@ -162,8 +172,11 @@ function T = heatRobin(xpts,tpts,f,T0,varargin)
 %     else
 %         odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1));
 %     end
-    odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1));
-    sol    = ode45(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
+%     odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1));
+    odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on');
+%     sol    = ode45(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
+    sol    = ode15s(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
+%     sol    = ode23s(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
     clear M b;
     T_t    = deval(sol,tpts);
     clear sol DOFs;

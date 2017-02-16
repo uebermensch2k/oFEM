@@ -274,13 +274,20 @@ classdef mesh < handle
         %  In 2D, the mesh consists of two triangles, in 3D it consists of
         %  6 tetrahedra.
         %
+        %  hypercube(x0,extent,symmetric) additionally requests to create
+        %  a symmetric triangulation, i.e., the created hypercube has an
+        %  additional node in the center of gravity. Works for 2D only for
+        %  now.
+        %
         
             p=inputParser;
             addRequired(p,'x0',@(x) validateattributes(x,{'numeric'},{'nonempty','real','vector'}));
             addOptional(p,'extent',1,@(x) validateattributes(x,{'numeric'},{'nonempty','real','vector'}));
+            addOptional(p,'symmetric',false,@(x) validateattributes(x,{'logical'},{'nonempty','scalar'}));
             parse(p,x0,varargin{:});
 
-            extent=p.Results.extent;
+            extent    = p.Results.extent;
+            symmetric = p.Results.symmetric;
 
             if any(extent<=0)
                 error('ofem:mesh:create:argchk','The extent must be positive');
@@ -317,26 +324,53 @@ classdef mesh < handle
                     obj.bd = {'boundary';{'boundary_P1','boundary_P2'; 1,1}};
                     
                 case 2
-                    %% coordinates
-                    obj.Nco = 4;
-                    obj.co  = [        ...
-                        [LL(1), LL(2)]; ...
-                        [UR(1), LL(2)]; ...
-                        [UR(1), UR(2)]; ...
-                        [LL(1), UR(2)]  ...
-                        ];
-                    
-                    %% elements
-                    obj.el = [ ...
-                        1,2,4; ...
-                        2,3,4  ...
-                        ];                    
+                    if ~symmetric
+                        %% coordinates
+                        obj.Nco = 4;
+                        obj.co  = [         ...
+                            [LL(1), LL(2)]; ...
+                            [UR(1), LL(2)]; ...
+                            [UR(1), UR(2)]; ...
+                            [LL(1), UR(2)]  ...
+                            ];
+                        
+                        %% elements
+                        obj.el = [ ...
+                            1,2,4; ...
+                            2,3,4  ...
+                            ];
+                        
+                        %% element type
+                        obj.type = 'tri';
+                        
+                        %% sidesets
+                        obj.bd = {'boundary';{'boundary_E1','boundary_E2','boundary_E3'; [1;2],2,1}};
+                    else
+                        %% coordinates
+                        MM=0.5*(LL+UR);
+                        obj.Nco = 5;
+                        obj.co  = [         ...
+                            [LL(1), LL(2)]; ...
+                            [UR(1), LL(2)]; ...
+                            [UR(1), UR(2)]; ...
+                            [LL(1), UR(2)]; ...
+                            [MM(1), MM(2)]; ...
+                            ];
 
-                    %% element type
-                    obj.type = 'tri';
-                    
-                    %% sidesets
-                    obj.bd = {'boundary';{'boundary_E1','boundary_E2','boundary_E3'; [1;2],2,1}};
+                        %% elements
+                        obj.el = [ ...
+                            1,2,5; ...
+                            2,3,5; ...
+                            3,4,5; ...
+                            4,1,5; ...
+                            ];                    
+
+                        %% element type
+                        obj.type = 'tri';
+
+                        %% sidesets
+                        obj.bd = {'boundary';{'boundary_E1','boundary_E2','boundary_E3'; [1;2;3;4],[],[]}};
+                    end
                     
                 case 3
                     %% coordinates
