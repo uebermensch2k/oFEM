@@ -170,7 +170,7 @@ function [T,mesh] = heatRobin(xpts,tpts,f,T0,varargin)
     b_r     = aux.robin{1}+aux.robin{2}+aux.robin{3}+aux.robin{4};
     DOFs    = asm.DOFs; % no Dirichlet boundary, therefore no DOFs needed
     A       = S(DOFs,DOFs)+D(DOFs,DOFs)+M_robin(DOFs,DOFs);
-%     clear S D M_robin;
+    clear S D M_robin;
 
     % initial condition
     T0 = squeeze(permute(double(T0(mesh.co)),[3,1,2]));
@@ -184,9 +184,10 @@ function [T,mesh] = heatRobin(xpts,tpts,f,T0,varargin)
 %     odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on','NonNegative',1:size(M,1));
     odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on');
 %     sol    = ode45(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
-    sol    = ode15s(@(t,x) (t<=0.5)*b_f(DOFs)+b_r(DOFs)-A*x,tpts,T0(DOFs),odeopt);
+%     sol    = ode15s(@(t,x) (t<=0.5)*b_f(DOFs)+b_r(DOFs)-A*x,tpts,T0(DOFs),odeopt);
+    sol    = ode15s(@(t,x) b_f(DOFs)+b_r(DOFs)-A*x,tpts,T0(DOFs),odeopt);
 %     sol    = ode23s(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
-    clear M b;
+    clear M b b_f b_r;
     T_t    = deval(sol,tpts);
     clear sol DOFs;
 

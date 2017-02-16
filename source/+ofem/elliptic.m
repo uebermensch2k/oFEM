@@ -75,8 +75,8 @@ classdef elliptic < handle
             S=S*detD;
 
             J = repmat(1:Ns,Ns,1);
-            I = el(:,J )';
-            J = el(:,J')';
+            I = el(:,J')';
+            J = el(:,J )';
 
             S = sparse(I(:),J(:),S(:),Nc,Nc);
         end
@@ -131,8 +131,8 @@ classdef elliptic < handle
             D=D*detD;
 
             J = repmat(1:Ns,Ns,1);
-            I = el(:,J )';
-            J = el(:,J')';
+            I = el(:,J')';
+            J = el(:,J )';
 
             D = sparse(I(:),J(:),D(:),Nc,Nc);
         end
@@ -197,8 +197,8 @@ classdef elliptic < handle
             M = (c*pipj)*detD;
 
             J = repmat(1:Ns,Ns,1);
-            I = el(:,J )';
-            J = el(:,J')';
+            I = el(:,J')';
+            J = el(:,J )';
 
             M=sparse(I(:),J(:),M(:),Nc,Nc);
         end
@@ -234,9 +234,11 @@ classdef elliptic < handle
                 F = F + f(X)*(w(q)*phi(:,q)');
             end
 
-%             F = F*detD;
-            F = permute(double(F*detD),[3,2,1]);
-            b = sparse(el(:),1,F(:),Nc,1);
+%             F = permute(double(F*detD),[3,2,1]);
+
+            F  = F*detD;
+            el = el';
+            b  = sparse(el(:),1,F(:),Nc,1);
         end
 
 
@@ -271,9 +273,11 @@ classdef elliptic < handle
                 F = F + g(X)*(w(q)*phi(:,q)');
             end
 
-%             F = F*meas;
-            F = permute(double(F*meas),[3,2,1]);
-            b = sparse(faces(:),1,F(:),Nc,1);
+%             F = permute(double(F*meas),[3,2,1]);
+
+            F     = F*meas;
+            faces = faces';
+            b     = sparse(faces(:),1,F(:),Nc,1);
         end
 
 
