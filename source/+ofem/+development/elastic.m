@@ -610,7 +610,6 @@ classdef elastic < handle
             info.time2assemble = toc;
         end
         
-        
         function grad=gradu(obj,u)
             %GRADU computes the gradient at DOFs.
             %
