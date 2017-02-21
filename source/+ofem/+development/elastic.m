@@ -4,7 +4,7 @@ classdef elastic < handle
     properties(Access=protected)
         mesh;
         fe;
-        quadrule;
+        qr;
         lambda;
         mu;
     end
