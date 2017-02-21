@@ -10,9 +10,9 @@ classdef elliptic < handle
     % scalar-valued function c. f is the applied volume force. This
     % operator is able to handle three types of boundary conditions:
     %
-    %   - Dirchlet: u = g_D
-    %   - Neumann : n\cdot (A \nabla u) = g_N
-    %   - Robin   : n\cdot (A \nabla u)+\alpha u = g_R
+    %   - Dirichlet: u = g_D
+    %   - Neumann  : n\cdot (A \nabla u) = g_N
+    %   - Robin    : n\cdot (A \nabla u)+\alpha u = g_R
     %
     % See also ofem.elliptic.assemble
     %
@@ -26,7 +26,7 @@ classdef elliptic < handle
     methods(Access=protected,Static)
 
         %%
-        function S=stiffness(A,DinvT,detD,dphi,w,el,co)
+        function S=stiffness(A,DinvT,detD,dphi,w,l,el,co)
         %stiffness returns the stiffness matrix.
         %
         % S=stiffness(DinvT,detD,dphi,w,el,co) returns the stiffness matrix
@@ -48,28 +48,42 @@ classdef elliptic < handle
         % ofem.finiteelement.dphi, ofem.quassianquadrature.data
         %
             Ns = size(dphi,1);
-            Nq = size(dphi,3);
-            Ne = size(el,1);
-            Nc = size(co,3);
+            Nq = size(w   ,1);
+            Ne = size(el  ,1);
+            Nc = size(co  ,3);
 
             S=ofem.matrixarray(zeros(Ns,Ns,Ne));
-            for q=1:Nq
-                globdphi = DinvT*dphi(:,:,q)';
-                S=S+globdphi'*(w(q)*A)*globdphi;
+
+            if isa(A,'function_handle')
+                Nl   = size(l  ,2); % number of barycentric coordinates
+                elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+
+                for q=1:Nq
+                    X = elco*(l(q,:)');
+                    globdphi = DinvT*dphi(:,:,q)';
+                    S=S+globdphi'*(w(q)*A(X))*globdphi;
+                end
+            else
+                for q=1:Nq
+                    globdphi = DinvT*dphi(:,:,q)';
+                    S=S+globdphi'*(w(q)*A)*globdphi;
+                end
             end
+
+            
 
             S=S*detD;
 
             J = repmat(1:Ns,Ns,1);
-            I = el(:,J )';
-            J = el(:,J')';
+            I = el(:,J')';
+            J = el(:,J )';
 
             S = sparse(I(:),J(:),S(:),Nc,Nc);
         end
 
 
         %%
-        function D=damping(b,DinvT,detD,phi,dphi,w,el,co)
+        function D=damping(b,DinvT,detD,phi,dphi,w,l,el,co)
         %damping returns the damping matrix.
         %
         % S=damping(b,DinvT,detD,phi,dphi,w,el,co) returns the damping
@@ -94,26 +108,31 @@ classdef elliptic < handle
         % ofem.finiteelement.dphi, ofem.quassianquadrature.data
         %
             Ns = size(dphi,1);
-            Nq = size(dphi,3);
-            Ne = size(el,1);
-            Nc = size(co,3);
+            Nq = size(w   ,1);
+            Ne = size(el  ,1);
+            Nc = size(co  ,3);
 
             D=ofem.matrixarray(zeros(Ns,Ns,Ne));
-            for q=1:Nq
-%                 wglobphi  = w(q)*phi(:,q);
-%                 bglobdphi = b'*DinvT*dphi(:,:,q)';
-% 
-%                 D=D+wglobphi'*bglobdphi;
 
-%                 D=D+phi(:,q)'*(w(q)*b)'*DinvT*dphi(:,:,q)';
-                D=D+phi(:,q)*(w(q)*b)'*(DinvT*dphi(:,:,q)');
+            if isa(b,'function_handle')
+                Nl   = size(l  ,2); % number of barycentric coordinates
+                elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+
+                for q=1:Nq
+                    X = elco*(l(q,:)');
+                    D=D+phi(:,q)*(w(q)*b(X))'*(DinvT*dphi(:,:,q)');
+                end
+            else
+                for q=1:Nq
+                    D=D+phi(:,q)*(w(q)*b)'*(DinvT*dphi(:,:,q)');
+                end
             end
 
             D=D*detD;
 
             J = repmat(1:Ns,Ns,1);
-            I = el(:,J )';
-            J = el(:,J')';
+            I = el(:,J')';
+            J = el(:,J )';
 
             D = sparse(I(:),J(:),D(:),Nc,Nc);
         end
@@ -121,6 +140,7 @@ classdef elliptic < handle
 
         %%
         function M=mass(c,detD,pipj,el,co)
+%         function M=mass(c,detD,phi,w,l,el,co)
         %mass returns the mass matrix.
         %
         % M=mass(detD,pipj,el,co) returns the mass matrix for the local set
@@ -135,14 +155,50 @@ classdef elliptic < handle
         %
         % See also ofem.mesh.jacobian_data, ofem.finiteelement.phiiphij
         %
+%             Ns = size(phi,1);
+%             Nq = size(w  ,1);
+%             Ne = size(el ,1);
+%             Nc = size(co ,3);
+% 
+% 
+%             if isa(c,'function_handle')
+%                 M=ofem.matrixarray(zeros(Ns,Ns,Ne));
+% 
+%                 Nl   = size(l  ,2); % number of barycentric coordinates
+%                 elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+% 
+%                 for q=1:Nq
+%                     X = elco*(l(q,:)');
+%                     M = M+c(X)*(phi(:,q)*phi(:,q)');
+%                 end
+%             else
+%                 if isscalar(c)
+%                     M = zeros(Ns,Ns);
+%                 else
+%                     M=ofem.matrixarray(zeros(Ns,Ns,Ne));
+%                 end
+%                 for q=1:Nq
+%                     M = M+c*(phi(:,q)*phi(:,q)');
+%                 end
+%             end
+% 
+%             M = M*detD;
+% 
+%             J = repmat(1:Ns,Ns,1);
+%             I = el(:,J )';
+%             J = el(:,J')';
+% 
+%             M = sparse(I(:),J(:),M(:),Nc,Nc);
+
+
             Ns = size(pipj,1);
             Nc = size(co  ,3);
 
             M = (c*pipj)*detD;
 
             J = repmat(1:Ns,Ns,1);
-            I = el(:,J )';
-            J = el(:,J')';
+            I = el(:,J')';
+            J = el(:,J )';
 
             M=sparse(I(:),J(:),M(:),Nc,Nc);
         end
@@ -178,8 +234,11 @@ classdef elliptic < handle
                 F = F + f(X)*(w(q)*phi(:,q)');
             end
 
-            F = F*detD;
-            b = sparse(el(:),1,F(:),Nc,1);
+%             F = permute(double(F*detD),[3,2,1]);
+
+            F  = F*detD;
+            el = el';
+            b  = sparse(el(:),1,F(:),Nc,1);
         end
 
 
@@ -214,8 +273,11 @@ classdef elliptic < handle
                 F = F + g(X)*(w(q)*phi(:,q)');
             end
 
-            F = F*meas;
-            b = sparse(faces(:),1,F(:),Nc,1);
+%             F = permute(double(F*meas),[3,2,1]);
+
+            F     = F*meas;
+            faces = faces';
+            b     = sparse(faces(:),1,F(:),Nc,1);
         end
 
 
@@ -357,6 +419,9 @@ classdef elliptic < handle
                     opt.S = 0;
                 else
                     aux.S = cell(Np,1);
+                    if ~isfield(opt,'A')
+                        opt.A=1;
+                    end
                 end
 
                 %% damping
@@ -364,6 +429,9 @@ classdef elliptic < handle
                     opt.D=0;
                 else
                     aux.D = cell(Np,1);
+                    if ~isfield(opt,'b')
+                        opt.b=[1;0];
+                    end
                 end
 
                 %% mass
@@ -371,11 +439,14 @@ classdef elliptic < handle
                     opt.M=0;
                 else
                     aux.M = cell(Np,1);
+                    if ~isfield(opt,'c')
+                        opt.c=1;
+                    end
                 end
 
                 %% volume force
                 if ~isfield(opt,'force')
-                    opt.force=[];
+                    opt.force={};
                 else
                     aux.force = cell(Np,1);
                 end
@@ -555,7 +626,7 @@ classdef elliptic < handle
             end
 
 
-            if opt.S||opt.D||opt.M||isempty(opt.force)==0
+            if opt.S||opt.D||opt.M||~isempty(opt.force)
                 intvol=1;
             end
 
@@ -563,7 +634,7 @@ classdef elliptic < handle
                 intface=1;
             end
 
-            if isempty(opt.dirichlet)==0
+            if ~isempty(opt.dirichlet)
                 intdiri=1;
             end
 
@@ -604,22 +675,23 @@ classdef elliptic < handle
                     
                     %% handle stiffness matrix
                     if opt.S==1
-                        aux.S{i} = obj.stiffness(opt.A,DinvTLoc,detDLoc,dphi,w,elemsLoc,obj.mesh.co);
+                        aux.S{i} = obj.stiffness(opt.A,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.co);
                         S = S + aux.S{i};
                     end
                     %% handle damping matrix
                     if opt.D==1
-                        aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,elemsLoc,obj.mesh.co);
+                        aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
                         D = D + aux.D{i};
                     end
                     %% handle mass matrix
                     if opt.M==1
+%                         aux.M{i} = obj.mass(opt.c,detDLoc,phi,w,l,elemsLoc,obj.mesh.co);
                         aux.M{i} = obj.mass(opt.c,detDLoc,pipj,elemsLoc,obj.mesh.co);
                         M = M + aux.M{i};
                     end
                     %% handle volume force matrix
-                    if isempty(opt.force)==0
-                        aux.force{i} = obj.load(pIdx,detDLoc,phi,w,l,opt.load,elemsLoc,obj.mesh.co);
+                    if ~isempty(opt.force)
+                        aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co);
                         b = b + aux.force{i};
                     end 
                 end
@@ -630,6 +702,7 @@ classdef elliptic < handle
                 % surface quad data
                 [w,l] = obj.qr.data(1);
                 phi   = obj.fe.phi(l);
+                pipj  = obj.fe.phiiphij(obj.mesh.dim-1);
 
                 for i=1:Nneu
                     [meas,faces,~] = obj.mesh.neumann(opt.neumann{i}.idx);
@@ -640,20 +713,24 @@ classdef elliptic < handle
                 for i=1:Nro
                     [meas,faces,~] = obj.mesh.neumann(opt.robin{i}.idx);
                     aux.robin{i}   = obj.pressure(meas{1},phi,w,l,opt.robin{i}.f,faces{1},obj.mesh.co);
-                    aux.M_robin{i} = obj.mass(opt.robin{i}.alpha(1),detDLoc,pipj,elemsLoc,obj.mesh.co);
+%                     aux.M_robin{i} = obj.mass(opt.robin{i}.alpha(1),meas{1},phi,w,l,faces{1},obj.mesh.co);
+                    aux.M_robin{i} = obj.mass(opt.robin{i}.alpha(1),meas{1},pipj,faces{1},obj.mesh.co);
                     M_robin        = M_robin + aux.M_robin{i};
                     b = b + aux.robin{i};
                 end
             end
 
             %% Dirichlet data
+            DOFs = 1:Nc; % NOTE: this is only valid for P1 elements => need an update
             if intdiri==1
                 for i=1:Ndiri
                     nodes = obj.mesh.dirichlet(opt.dirichlet{i}.idx);
+                    DOFs  = setdiff(DOFs,nodes{1});
                     aux.dirichlet{i} = obj.dirichlet(opt.dirichlet{i}.f,nodes{1},obj.mesh.co);
-                    b = b - (S+D+M)*aux.dirichlet{i};
+                    b = b - (S+D+M+M_robin)*aux.dirichlet{i};
                 end
             end
+            asm.DOFs = DOFs;
 
             if opt.S
                 asm.S=S;

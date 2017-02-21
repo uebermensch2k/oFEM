@@ -8,7 +8,7 @@ classdef mesh < handle
         mu0  = 1.2566370614e-6;    % in kg*m*s^-2*A^-2
     end
 
-    properties (SetAccess=protected)
+    properties (SetAccess=public)
         % dimension of the space described by the mesh
         dim;
 
@@ -268,19 +268,26 @@ classdef mesh < handle
         %
         %  hypercube(x0,extent) additionally sets the extent of the
         %  hypercube. extent can either be a scalar, in which case the
-        %  hypercube has all equal lengths, or must match the dimension of
+        %  hypercube has all lengths equal, or must match the dimension of
         %  x0.
         %
         %  In 2D, the mesh consists of two triangles, in 3D it consists of
         %  6 tetrahedra.
         %
+        %  hypercube(x0,extent,symmetric) additionally requests to create
+        %  a symmetric triangulation, i.e., the created hypercube has an
+        %  additional node in the center of gravity. Works for 2D only for
+        %  now.
+        %
         
             p=inputParser;
             addRequired(p,'x0',@(x) validateattributes(x,{'numeric'},{'nonempty','real','vector'}));
             addOptional(p,'extent',1,@(x) validateattributes(x,{'numeric'},{'nonempty','real','vector'}));
+            addOptional(p,'symmetric',false,@(x) validateattributes(x,{'logical'},{'nonempty','scalar'}));
             parse(p,x0,varargin{:});
 
-            extent=p.Results.extent;
+            extent    = p.Results.extent;
+            symmetric = p.Results.symmetric;
 
             if any(extent<=0)
                 error('ofem:mesh:create:argchk','The extent must be positive');
@@ -317,26 +324,53 @@ classdef mesh < handle
                     obj.bd = {'boundary';{'boundary_P1','boundary_P2'; 1,1}};
                     
                 case 2
-                    %% coordinates
-                    obj.Nco = 4;
-                    obj.co  = [        ...
-                        [LL(1), LL(2)]; ...
-                        [UR(1), LL(2)]; ...
-                        [UR(1), UR(2)]; ...
-                        [LL(1), UR(2)]  ...
-                        ];
-                    
-                    %% elements
-                    obj.el = [ ...
-                        1,2,4; ...
-                        2,3,4  ...
-                        ];                    
+                    if ~symmetric
+                        %% coordinates
+                        obj.Nco = 4;
+                        obj.co  = [         ...
+                            [LL(1), LL(2)]; ...
+                            [UR(1), LL(2)]; ...
+                            [UR(1), UR(2)]; ...
+                            [LL(1), UR(2)]  ...
+                            ];
+                        
+                        %% elements
+                        obj.el = [ ...
+                            1,2,4; ...
+                            2,3,4  ...
+                            ];
+                        
+                        %% element type
+                        obj.type = 'tri';
+                        
+                        %% sidesets
+                        obj.bd = {'boundary';{'boundary_E1','boundary_E2','boundary_E3'; [1;2],2,1}};
+                    else
+                        %% coordinates
+                        MM=0.5*(LL+UR);
+                        obj.Nco = 5;
+                        obj.co  = [         ...
+                            [LL(1), LL(2)]; ...
+                            [UR(1), LL(2)]; ...
+                            [UR(1), UR(2)]; ...
+                            [LL(1), UR(2)]; ...
+                            [MM(1), MM(2)]; ...
+                            ];
 
-                    %% element type
-                    obj.type = 'tri';
-                    
-                    %% sidesets
-                    obj.bd = {'boundary';{'boundary_E1','boundary_E2','boundary_E3'; [1;2],2,1}};
+                        %% elements
+                        obj.el = [ ...
+                            1,2,5; ...
+                            2,3,5; ...
+                            3,4,5; ...
+                            4,1,5; ...
+                            ];                    
+
+                        %% element type
+                        obj.type = 'tri';
+
+                        %% sidesets
+                        obj.bd = {'boundary';{'boundary_E1','boundary_E2','boundary_E3'; [1;2;3;4],[],[]}};
+                    end
                     
                 case 3
                     %% coordinates
@@ -426,7 +460,9 @@ classdef mesh < handle
                     obj.parts(3,:)=cellfun(@(x) [x;x+Nel],obj.parts(3,:),'UniformOutput',false);
 
                     % update boundaries
-                    obj.bd{2,:}(2,2)=cellfun(@(x) x+Nel,obj.bd{2,:}(2,2),'UniformOutput',false);
+                    for i=1:numel(obj.bd(2,:))
+                        obj.bd{2,i}{2,2}=obj.bd{2,i}{2,2}+Nel;
+                    end
 
                 case 'tri'
                     %% triangle
@@ -442,9 +478,11 @@ classdef mesh < handle
                     obj.parts(3,:)=cellfun(@(x) [x;x+Nel;x+2*Nel;x+3*Nel],obj.parts(3,:),'UniformOutput',false);
 
                     % update boundaries
-                    obj.bd{2,:}(2,1)=cellfun(@(x) [x      ; x+  Nel],obj.bd{2,:}(2,1),'UniformOutput',false);
-                    obj.bd{2,:}(2,2)=cellfun(@(x) [x+  Nel; x+2*Nel],obj.bd{2,:}(2,2),'UniformOutput',false);
-                    obj.bd{2,:}(2,3)=cellfun(@(x) [x+2*Nel; x      ],obj.bd{2,:}(2,3),'UniformOutput',false);
+                    for i=1:numel(obj.bd(2,:))
+                        obj.bd{2,i}{2,1}=[obj.bd{2,i}{2,1}      ; obj.bd{2,i}{2,1}+  Nel];
+                        obj.bd{2,i}{2,2}=[obj.bd{2,i}{2,2}+  Nel; obj.bd{2,i}{2,2}+2*Nel];
+                        obj.bd{2,i}{2,3}=[obj.bd{2,i}{2,3}+2*Nel; obj.bd{2,i}{2,3}      ];
+                    end
 
                 case 'quad'
                     %% quadrilateral
@@ -453,8 +491,34 @@ classdef mesh < handle
 
                 case 'tet'
                     %% tetrahedron
-                    error('ofem:mesh:NotImplemented',...
-                          'Tetrahedral meshes not supported so far!');
+%                     error('ofem:mesh:NotImplemented',...
+%                           'Tetrahedral meshes not supported so far!');
+
+                    obj.el = [ ...
+                        elem(:,[1,5, 6, 7]); ...
+                        elem(:,[5,2, 8, 9]); ...
+                        elem(:,[6,8, 3,10]); ...
+                        elem(:,[7,9,10, 4]); ...
+                        elem(:,[7,5, 6, 9]); ...
+                        elem(:,[5,8, 6,10]); ...
+                        elem(:,[6,8,10, 9]); ...
+                        elem(:,[7,9, 6,10]); ...
+                        ];
+
+                    % update parts
+                    obj.parts(3,:)=cellfun(@(x) [x;x+Nel;x+2*Nel;x+3*Nel;x+4*Nel;x+5*Nel;x+6*Nel;x+7*Nel],obj.parts(3,:),'UniformOutput',false);
+
+                    % update boundaries
+                    % S1: 1, 2, 3
+                    % S2: 1, 2, 4
+                    % S3: 2, 3, 4
+                    % S4: 1, 3, 4
+                    for i=1:numel(obj.bd(2,:))
+                        obj.bd{2,i}{2,1}=[obj.bd{2,i}{2,1}      ; obj.bd{2,i}{2,1}+1*Nel; obj.bd{2,i}{2,1}+2*Nel; obj.bd{2,i}{2,1}+5*Nel];
+                        obj.bd{2,i}{2,2}=[obj.bd{2,i}{2,2}      ; obj.bd{2,i}{2,2}+1*Nel; obj.bd{2,i}{2,2}+3*Nel; obj.bd{2,i}{2,2}+4*Nel];
+                        obj.bd{2,i}{2,3}=[obj.bd{2,i}{2,3}+1*Nel; obj.bd{2,i}{2,3}+2*Nel; obj.bd{2,i}{2,3}+3*Nel; obj.bd{2,i}{2,3}+6*Nel];
+                        obj.bd{2,i}{2,4}=[obj.bd{2,i}{2,4}      ; obj.bd{2,i}{2,4}+2*Nel; obj.bd{2,i}{2,4}+3*Nel; obj.bd{2,i}{2,4}+7*Nel];
+                    end
 
                 case 'hex'
                     %% hexahedron
@@ -1225,7 +1289,64 @@ classdef mesh < handle
                   'XDMF file exporter is under development!');
         end
 
-%         function info=printfinfo(obj)
+        function info=info(obj)
+            switch obj.type
+                case 'edge'
+                    %% edge
+                    node = permute(double(obj.co),[3,1,2]);
+                    edge = node(obj.el(:,2),:)-node(obj.el(:,1),:);
+                    edge = squeeze(sqrt(dot(edge,edge,2)));
+%                     info.edge.N   = numel(edge);
+                    info.edge.max = max(edge);
+                    info.edge.min = min(edge);
+                    info.edge.ave = mean(edge);
+ 
+                case 'tri'
+                    %% triangle
+                    node = permute(double(obj.co),[3,1,2]);
+                    edge = [ ...
+                        node(obj.el(:,2),:)-node(obj.el(:,1),:); ...
+                        node(obj.el(:,3),:)-node(obj.el(:,2),:); ...
+                        node(obj.el(:,1),:)-node(obj.el(:,3),:); ...
+                        ];
+                    edge = sqrt(dot(edge,edge,2));
+%                     info.edge.N   = numel(edge);
+                    info.edge.max = max(edge);
+                    info.edge.min = min(edge);
+                    info.edge.ave = mean(edge);
+ 
+                case 'quad'
+                    %% quadrilateral
+                    warning('ofem:mesh:print_info:notImplemented',...
+                            'No info for quadrilateral meshes so far!!');
+ 
+                case 'tet'
+                    %% tetrahedron
+                    node = permute(double(obj.co),[3,1,2]);
+                    edge = [ ...
+                        node(obj.el(:,2),:)-node(obj.el(:,1),:); ...
+                        node(obj.el(:,3),:)-node(obj.el(:,1),:); ...
+                        node(obj.el(:,4),:)-node(obj.el(:,1),:); ...
+                        node(obj.el(:,3),:)-node(obj.el(:,2),:); ...
+                        node(obj.el(:,4),:)-node(obj.el(:,2),:); ...
+                        node(obj.el(:,4),:)-node(obj.el(:,3),:); ...
+                        ];
+                    edge = squeeze(sqrt(dot(edge,edge,2)));
+%                     info.edge.N   = numel(edge);
+                    info.edge.max = max(edge);
+                    info.edge.min = min(edge);
+                    info.edge.ave = mean(edge);
+ 
+                case 'hex'
+                    %% hexahedron
+                    warning('ofem:mesh:print_info:notImplemented',...
+                            'No info for hexahedral meshes so far!!');
+ 
+                otherwise
+                    error('ofem:mesh:print_info:Unspecified',...
+                          'Unspecified error found');
+            end
+
 %             edge = obj.el(:,[]
 %             elem     = sortelem3(elem);
 %             [~,edge] = dof3edge (elem);
@@ -1258,7 +1379,7 @@ classdef mesh < handle
 %             info.tet.min = min(volume);
 %             info.tet.max = max(volume);
 %             info.tet.ave = sum(volume)/NT;
-%         end
+        end
 
         %%
         function h=show(obj)

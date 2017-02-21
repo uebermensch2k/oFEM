@@ -1,0 +1,77 @@
+\documentclass[]{elsarticle}
+
+%\usepackage{draftwatermark}
+%\SetWatermarkLightness{0.7}
+%\SetWatermarkScale{3}
+%\SetWatermarkColor[rgb]{1,0,0}
+
+%\usepackage[printwatermark]{xwatermark}
+%\usepackage{xcolor}
+%\usepackage{graphicx}
+%\usepackage{lipsum}
+%
+%\newwatermark*[allpages,color=red!30,angle=45,scale=3,xpos=0,ypos=0]{DRAFT}
+
+\input{command}
+
+
+
+\begin{document}
+
+The heat equation including effects of convection can be written as
+\begin{equation}
+\label{eq:HeatWithConvection}
+c_{P}\rho\left(\frac{\partial T}{\partial t}+\bvec{v}\cdot \nabla T\right)-\nabla\cdot\left(k\nabla T\right)=s,
+\end{equation}
+where $c_{P}$ is the specific heat, $\rho$ the density, $\bvec{v}$ the velocity, and $k$ the thermal conductivity of the carrier medium, respectively. The heat exchange wqith the ambient medium can roughly be described by
+\begin{equation}
+\label{eq:HeatExchangeWithAmbient}
+-\bvec{n}\cdot\left(k\nabla T\right)=h\left(T-T_{a}\right)
+\end{equation}
+with $\bvec{n}$ the outer normal at the contact with ambient medium, $h$ the heat transfer coefficient between carrier body and ambient medium and $T_{a}$ the ambient temperature. The boundary conditions \eqref{eq:HeatExchangeWithAmbient} are of Robin type
+\begin{equation}
+\label{eq:RobinBC}
+	\bvec{n}\cdot\left(\bmat{A}\nabla T\right)+\alpha T=g_{R}
+\end{equation}
+with $\bmat{A}=k\bmat{I}$, $\alpha=h$ and $g_{R}=hT_{a}$. The general form of an elliptic Operator reads
+\begin{equation}
+\label{eq:GeneralElliptic}
+	-\nabla\cdot\left(\bvec{A}\nabla u\right)+\bvec{b}\cdot \nabla u+cu=f
+\end{equation}
+with a positive definite matrix-valued function $\bmat{A}$, a vector-valued function $\bvec{b}$ and scalar-valued functions $a,f$. In its weak form 
+\eqref{eq:GeneralElliptic} rewrites to
+\begin{equation}
+\label{eq:GeneralEllipticWeak}
+\int\limits_{\Omega} \nabla \varphi_{i}\cdot\left(\bmat{A}\nabla u\right)\,dV +\int\limits_{\Omega}\varphi_{i}\,\bvec{v}\cdot\nabla u\, dV+\oint\limits_{\partial \Omega}\varphi_{i}\left(\alpha u\right)\, dS = \int\limits_{\Omega}\varphi_{i} f\, dV + \oint\limits_{\partial \Omega} \varphi_{i} g_{R} \, dS,
+\end{equation}
+where Robin boundary conditions \eqref{eq:RobinBC} has been imposed on the whole boundary, $\partial\Omega$. Thus the FEM formulation for the time-dependent spatial temperature distribution $\bvec{T}$ at DOFs of \eqref{eq:HeatWithConvection} is
+\begin{equation}
+\label{eq:HeatWithConvectionFEM}
+\bmat{M}(c_{P}\rho)\frac{d \bvec{T}}{dt}+\left(\bmat{D}(c_{P}\rho \bvec{v})+\bmat{S}(k) + \bmat{M}_{b}(h)\right)\bvec{T} = \bvec{b}(f)+\bvec{b}_{b}(hT_{a}),
+\end{equation}
+with stiffness matrix $\bvec{S}$, damping matrix $\bmat{D}$, mass matrix $\bvec{M}$, right-hand side vector $\bvec{b}$ and their boundary analogues indicated by a subscript $b$.
+
+%\input{frontmatter}
+%
+%\input{introduction}
+%\input{fem}
+%\input{oFEM}
+%\input{numericalresults}
+%\input{conclusion}
+%\input{acknowledge}
+%\clearpage
+%
+%\appendix
+%\input{appendix1}
+%\input{appendix2}
+%
+%
+%\section*{References}
+%\bibliographystyle{elsarticle-num}
+%\bibliography{literature}
+%\clearpage
+%\include{figures}
+
+
+\end{document}
+
