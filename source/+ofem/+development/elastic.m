@@ -3,8 +3,8 @@
 classdef elastic < handle
     properties(Access=protected)
         mesh;
-        felem;
-        quadrule;
+        fe;
+        qr;
         lambda;
         mu;
     end
@@ -71,8 +71,8 @@ classdef elastic < handle
             Ne = size(el,1);
             Nc = size(co,3);
 
-            I = repmat(1:Nd*Ns,Nd*Ns,1); I=I(:);
-            J = repmat(1:Nd*Ns,1,Nd*Ns); J=J(:);
+%             I = repmat(1:Nd*Ns,Nd*Ns,1); I=I(:);
+%             J = repmat(1:Nd*Ns,1,Nd*Ns); J=J(:);
 
             % lambda = (nu*E)/((1+nu)*(1-2*nu)); %for plane strain
             % lambda = (nu*E)/((1+nu)^2);        %for plane stress
@@ -234,11 +234,11 @@ classdef elastic < handle
 
     methods
         %%
-        function obj=elastic(mesh,felem, quadrule)
-%             obj@ofem.laplace(mesh,felem);
+        function obj=elastic(mesh,fe, qr)
+%             obj@ofem.laplace(mesh,fe);
             obj.mesh  = mesh;
-            obj.felem = felem;
-            obj.quadrule = quadrule;
+            obj.fe = fe;
+            obj.qr = qr;
         end
 
         function setmaterial(obj,lambda,mu)
@@ -265,7 +265,7 @@ classdef elastic < handle
         
             Np  = size(obj.mesh.parts,2);
             Nbd = size(obj.mesh.bd   ,2);
-            Nc  = size(obj.mesh.co       ,3);
+            Nc  = size(obj.mesh.co   ,3);
             Nd  = obj.mesh.dim;
             
             intvol  = 0;
@@ -525,12 +525,12 @@ classdef elastic < handle
 %% volume related integration
             if intvol==1
                 % volume quad data
-                [w,l] = obj.quadrule.data(0);
+                [w,l] = obj.qr.data(0);
 
                 % shape functions related stuff
-                pipj  = obj.felem.phiiphij(obj.mesh.dim);
-                phi   = obj.felem.phi(l);
-                dphi  = obj.felem.dphi(l);
+                pipj  = obj.fe.phiiphij(obj.mesh.dim);
+                phi   = obj.fe.phi(l);
+                dphi  = obj.fe.dphi(l);
                 [DinvT,detD] = obj.mesh.jacobiandata;
                 aux.detD   = detD;
 
@@ -567,8 +567,8 @@ classdef elastic < handle
             %% surface related integration
             if intface==1
                 % surface quad data
-                [w,l] = obj.quadrule.data(1);
-                phi   = obj.felem.phi(l);
+                [w,l] = obj.qr.data(1);
+                phi   = obj.fe.phi(l);
                 aux.neumannidx=zeros(Nneu,1);
 
                 for i=1:Nneu
@@ -619,7 +619,7 @@ classdef elastic < handle
         % nodes and Nd the dimension of the spatial space.
         %
         
-        switch obj.felem
+        switch obj.fe
             case ofem.finiteelement.P1
                 
                 switch obj.mesh.dim

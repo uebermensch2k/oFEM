@@ -1,0 +1,71 @@
+reset
+
+################################ Variablen ####################################################
+
+ #{height_rect=1}
+ #{width_rect=1}
+
+ #{height_kondensator=0.2}
+ #{width_kondensator=0.2}
+
+#{relativ_permittivity_glas=1}
+#{relativ_permittivity_paper=1}
+
+#{mesh_size=0.05}
+################################ Modell ######################################################
+
+create surface rectangle width {width_rect} height {height_rect} zplane
+create surface rectangle width {width_kondensator/2} height {height_kondensator} zplane
+move Surface 2  x -0.05 
+Surface 2  copy reflect x 
+
+subtract body 2,3  from body 1  keep
+delete body 1
+
+############################## merge imprint ############################################################
+imprint curve all
+merge curve all
+
+############################ rename #############################################################
+surf 2 rename "kondensator_li"
+surf 3 rename "kondensator_re"
+surf 4 rename "Aussenraum"
+
+############################### Blocks ###########################################################
+
+block 1 kondensator_li
+block 1 name 'kondensator_li'
+
+block 2 kondensator_re
+block 2 name 'kondensator_re'
+
+block 3 Aussenraum
+block 3 name 'Aussenraum'
+
+############################# Nodesets #############################################################
+
+Sideset 1 add curve 6 
+sideset 1 name "linke Platte"
+
+Sideset 2 add curve 10 
+sideset 2 name "rechte Platte"
+
+################################# scheme and size ##################################################
+
+surf all scheme trimesh
+surf all size {mesh_size}
+
+#################################### mesh ##########################################################
+
+mesh surf all
+refine surf 2,3 numsplit 2 bias 2 depth 4 smooth
+
+############################# save ###########################################################
+#
+export abaqus "/Users/dudzinsm/Projects/oFEM/projects/exercises/planarCapacitor/planar_capacitor.inp" everything dimension 2 overwrite #cubitids
+#
+#
+#
+
+
+
