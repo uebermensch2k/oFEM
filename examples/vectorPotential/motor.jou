@@ -1,0 +1,134 @@
+reset
+
+
+
+## create geometry
+
+# ring
+create surface circle radius 10 zplane
+
+# inner space
+create surface circle radius 9 zplane
+
+# coils on inner side
+create surface circle radius 1 zplane
+create surface circle radius 1 zplane
+create surface circle radius 1 zplane
+create surface circle radius 1 zplane
+create surface circle radius 1 zplane
+create surface circle radius 1 zplane
+move Surface 3 x 8.3 include_merged
+rotate Surface 3  angle 30  about Z include_merged
+move Surface 4 x 8.3 include_merged
+rotate Surface 4  angle 90  about Z include_merged
+move Surface 5 x 8.3 include_merged
+rotate Surface 5  angle 150  about Z include_merged
+move Surface 6 x 8.3 include_merged
+rotate Surface 6  angle 210  about Z include_merged
+move Surface 7 x 8.3 include_merged
+rotate Surface 7  angle 270  about Z include_merged
+move Surface 8 x 8.3 include_merged
+rotate Surface 8  angle 330  about Z include_merged
+
+# coils on outer side
+create surface circle radius 1 zplane
+create surface circle radius 1 zplane
+create surface circle radius 1 zplane
+create surface circle radius 1 zplane
+create surface circle radius 1 zplane
+create surface circle radius 1 zplane
+move Surface 9 x 10.5 include_merged
+move Surface 10 x 10.5 include_merged
+rotate Surface 10  angle 60  about Z include_merged
+move Surface 11 x 10.5 include_merged
+rotate Surface 11  angle 120  about Z include_merged
+move Surface 12 x 10.5 include_merged
+rotate Surface 12 angle 180  about Z include_merged
+move Surface 13 x 10.5 include_merged
+rotate Surface 13 angle 240  about Z include_merged
+move Surface 14 x 10.5 include_merged
+rotate Surface 14 angle 300  about Z include_merged
+
+# seperate
+subtract body 2 to 14 from body 1 imprint keep
+subtract body 3 to 8 from body 2 imprint keep
+
+delete body 1
+delete body 2
+
+
+
+## imprint and merge
+imprint body all
+merge body all
+
+
+
+## create blocks
+block 1 surface 3
+block 1 name 'inner_coil1'
+
+block 2 surface 4
+block 2 name 'inner_coil2'
+
+block 3 surface 5
+block 3 name 'inner_coil3'
+
+block 4 surface 6
+block 4 name 'inner_coil4'
+
+block 5 surface 7
+block 5 name 'inner_coil5'
+
+block 6 surface 8
+block 6 name 'inner_coil6'
+
+block 7 surface 9
+block 7 name 'outer_coil1'
+
+block 8 surface 10
+block 8 name 'outer_coil2'
+
+block 9 surface 11
+block 9 name 'outer_coil3'
+
+block 10 surface 12
+block 10 name 'outer_coil4'
+
+block 11 surface 13
+block 11 name 'outer_coil5'
+
+block 12 surface 14
+block 12 name 'outer_coil6'
+
+block 13 surface 15
+block 13 name 'ring'
+
+block 14 surface 16
+block 14 name 'inner'
+
+
+
+## create sidesets
+Sideset 1 curve 75 77 78 80 81 83 84 86 87 89 90 92
+sideset 1 name 'coil'
+
+
+Sideset 2 curve 16 18 20 22 24 26
+sideset 2 name 'ring'
+
+
+
+## mesh geometry
+surface all scheme TriMesh
+mesh surface all
+refine surface all numsplit 2 bias 1.0 depth 1 smooth
+
+
+
+## export mesh
+export abaqus "/Users/dmichal/Documents/tet/lehre/2015/MANF/uebung/uebung10/meshes/motor.inp" dimension 2 overwrite 
+
+
+
+

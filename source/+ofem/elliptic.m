@@ -120,11 +120,11 @@ classdef elliptic < handle
 
                 for q=1:Nq
                     X = elco*(l(q,:)');
-                    D=D+phi(:,q)*(w(q)*b(X))'*(DinvT*dphi(:,:,q)');
+                    D=D+phi(:,q)*((w(q)*b(X))'*(DinvT*dphi(:,:,q)'));
                 end
             else
                 for q=1:Nq
-                    D=D+phi(:,q)*(w(q)*b)'*(DinvT*dphi(:,:,q)');
+                    D=D+phi(:,q)*((w(q)*b   )'*(DinvT*dphi(:,:,q)'));
                 end
             end
 
@@ -647,6 +647,7 @@ classdef elliptic < handle
             M=sparse(Nc,Nc);
             M_robin=sparse(Nc,Nc);
             b=sparse(Nc,1);
+            dirichlet=sparse(Nc,1);
 
 %             opt.A=1;
 %             opt.b=ones(3,1);
@@ -675,23 +676,39 @@ classdef elliptic < handle
                     
                     %% handle stiffness matrix
                     if opt.S==1
-                        aux.S{i} = obj.stiffness(opt.A,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.co);
+                        if iscell(opt.A)
+                            aux.S{i} = obj.stiffness(opt.A{i},DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.co);
+                        else
+                            aux.S{i} = obj.stiffness(opt.A,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.co);
+                        end
                         S = S + aux.S{i};
                     end
                     %% handle damping matrix
                     if opt.D==1
-                        aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
+                        if iscell(opt.b)
+                            aux.D{i} = obj.damping(opt.b{i},DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
+                        else
+                            aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
+                        end
                         D = D + aux.D{i};
                     end
                     %% handle mass matrix
                     if opt.M==1
+                        if iscell(opt.c)
 %                         aux.M{i} = obj.mass(opt.c,detDLoc,phi,w,l,elemsLoc,obj.mesh.co);
-                        aux.M{i} = obj.mass(opt.c,detDLoc,pipj,elemsLoc,obj.mesh.co);
+                            aux.M{i} = obj.mass(opt.c{i},detDLoc,pipj,elemsLoc,obj.mesh.co);
+                        else
+                            aux.M{i} = obj.mass(opt.c,detDLoc,pipj,elemsLoc,obj.mesh.co);
+                        end
                         M = M + aux.M{i};
                     end
                     %% handle volume force matrix
                     if ~isempty(opt.force)
-                        aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co);
+                        if iscell(opt.force)
+                            aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force{i},elemsLoc,obj.mesh.co);
+                        else
+                            aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co);
+                        end
                         b = b + aux.force{i};
                     end 
                 end
@@ -727,6 +744,7 @@ classdef elliptic < handle
                     nodes = obj.mesh.dirichlet(opt.dirichlet{i}.idx);
                     DOFs  = setdiff(DOFs,nodes{1});
                     aux.dirichlet{i} = obj.dirichlet(opt.dirichlet{i}.f,nodes{1},obj.mesh.co);
+                    dirichlet = dirichlet+aux.dirichlet{i};
                     b = b - (S+D+M+M_robin)*aux.dirichlet{i};
                 end
             end
@@ -747,6 +765,10 @@ classdef elliptic < handle
 
             if ~isempty(opt.robin)
                 asm.M_robin = M_robin;
+            end
+
+            if ~isempty(opt.dirichlet)
+                asm.dirichlet = dirichlet;
             end
 
 
@@ -904,7 +926,7 @@ classdef elliptic < handle
 
 
         %%
-        function plot(obj,u,varargin)
+        function h=plot(obj,u,varargin)
         %PLOT plots the solution.
         %
         co = double(squeeze(obj.mesh.co)');
@@ -921,23 +943,23 @@ classdef elliptic < handle
 
         switch obj.mesh.dim
             case 2
-                trimesh(obj.mesh.el          , ...
-                        co(:,1)              , ...
-                        co(:,2)              , ...
-                        u                    , ...
-                        'FaceColor', 'interp', ...
-                        'EdgeColor', 'none'  );
+                h=trimesh(obj.mesh.el          , ...
+                          co(:,1)              , ...
+                          co(:,2)              , ...
+                          u                    , ...
+                          'FaceColor', 'interp', ...
+                          'EdgeColor', 'none'  );
                 xlabel('x-axis');
                 ylabel('y-axis');
                 zlabel(name);
                 colorbar;
 
             case 3
-                tetramesh(obj.mesh.el, ...
-                          co         , ...
-                          u          , ...
-                          'FaceColor', 'interp', ...
-                          'EdgeColor', 'none'  );
+                h=tetramesh(obj.mesh.el, ...
+                            co         , ...
+                            u          , ...
+                            'FaceColor', 'interp', ...
+                            'EdgeColor', 'none'  );
                 xlabel('x-axis');
                 ylabel('y-axis');
                 zlabel('z-axis');

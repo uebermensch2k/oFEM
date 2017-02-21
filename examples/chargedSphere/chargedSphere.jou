@@ -1,0 +1,73 @@
+reset
+
+################################ Variablen ####################################################
+
+
+#{mesh_size_cubit=10}
+#{mesh_size_sphere=2}
+
+#{radius_zelle=8}
+#{radius_zelle_big=30}
+
+group "ns" add vertex 1 to {Anzahl_Punkte_1+Anzahl_Punkte_2}
+
+############################### Create CAD Model #################################################
+
+## Create Brick
+create sphere radius {radius_zelle}
+create sphere radius {radius_zelle_big}
+subtract vol 1 from vol 2 keep
+delete vol 2
+
+########################## imprint #############################################################
+
+imprint vol all
+merge vol all
+
+########################## groups #############################################################
+
+group "erde" add surface 3
+group "inner_surf" add surface 1
+
+########################## Blocks #############################################################
+
+block 2 volume 3
+block 2 name 'Aussenraum'
+block 1 volume 1
+block 1 name 'Sphere_1'
+
+########################## Sidesets #############################################################
+
+sideset 1 erde
+sideset 1 name 'Erde'
+sideset 2 inner_surf
+sideset 2 name 'Inner_Surf'
+
+########################## Nodesets #############################################################
+
+nodeset 1 ns
+nodeset 1 name 'Vertex_1'
+
+########################## scheme and size####  ####################################################
+
+vol all scheme tetmesh
+vol 3 size {mesh_size_cubit}
+surf 1 size {mesh_size_sphere}
+
+############################# mesh ##########################################################
+mesh group ns
+mesh vol all
+#refine volume 1 numsplit 1 bias 1 depth 1 smooth
+
+## export
+export abaqus "/Users/dmichal/Documents/tet/lehre/2015/HT/MANF/uebung/uebung4/meshes/chargedSphere.inp" dimension 3 everything overwrite #cubitids
+
+
+
+
+
+
+
+
+
+
