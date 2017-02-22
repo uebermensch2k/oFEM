@@ -8,10 +8,10 @@ mesh_file_name = fullfile('.','motor');
 
 frequency = 50;
 omega=2*pi*frequency;
-Utot=1e10;
+% Utot=1e10;
+Utot=100;
 T_max = 4*2*pi/omega;
 
-% val_B       = 1e-10;
 max_Az      =  1e-11;
 min_Az      = -1e-11;
 max_gradphi =  1e-11;
@@ -84,21 +84,16 @@ fe = ofem.finiteelement.P1;
 %% assemble
 op=ofem.elliptic(mesh,fe,ofem.gaussianquadrature(mesh,fe));
 opt.S=1;
-opt.A={coil.mu,coil.mu,coil.mu,coil.mu,coil.mu,coil.mu,... % outer coils
-       coil.mu,coil.mu,coil.mu,coil.mu,coil.mu,coil.mu,... % inner coils
-       space.mu,... % air
-       rotor.mu ... % inner
-       };
 opt.M=1;
-opt.c={coil.kappa,coil.kappa,coil.kappa,coil.kappa,coil.kappa,coil.kappa,... % outer coils
-       coil.kappa,coil.kappa,coil.kappa,coil.kappa,coil.kappa,coil.kappa,... % inner coils
-       space.kappa,... % air
-       rotor.kappa ... % inner
-       };
-opt.M=1;
+opt.A=[...
+       repmat({coil.kappa*coil.mu},1,6), ... % outer coils
+       repmat({coil.kappa*coil.mu},1,6), ... % inner coils
+       {space.kappa*space.mu}          , ... % air
+       {rotor.kappa*rotor.mu}            ... % inner
+      ];
 opt.dirichlet{1}=struct('idx',1,'f',0);
 opt.dirichlet{2}=struct('idx',2,'f',0);
-opt.force=@(X) voltage(X,coil,Utot);
+opt.force=@(X) coil.kappa*coil.mu*voltage(X,coil,Utot);
 [asm,info,aux]=op.assemble(opt);
 
 % stiffness
@@ -106,45 +101,36 @@ S = asm.S;
 M = asm.M;
 
 % load
-gradphi = -(aux.force{7}+aux.force{8}+aux.force{9}+aux.force{10}+aux.force{11}+aux.force{12})*coil.kappa;
+coilforce = [aux.force{7:12}];
+% gradphi = -sum(coilforce,2);
 
 kappa = zeros(Nc,1);
 idx = unique(mesh.el(vertcat(mesh.parts{3,1:12}),:));
 kappa(idx(:)) = coil.kappa;
 idx = unique(mesh.el(mesh.parts{3,13},:));
-kappa(idx) = space.kappa;
+kappa(idx(:)) = space.kappa;
 idx = unique(mesh.el(mesh.parts{3,14},:));
-kappa(idx) = rotor.kappa;
+kappa(idx(:)) = rotor.kappa;
 
-u=full(asm.dirichlet);
+% u=full(asm.dirichlet);
 DOFs = asm.DOFs;
 
 
 %% solve
-phi = linspace(0,2*pi,7); phi = phi(1:6);
+phi = linspace(0,2*pi,7); phi = phi(1:6)';
 
-F    = @(t,y) -aux.force{ 7}(DOFs)*sin(omega*t+phi(1)) ...
-              -aux.force{ 8}(DOFs)*sin(omega*t+phi(2)) ...
-              -aux.force{ 9}(DOFs)*sin(omega*t+phi(3)) ...
-              -aux.force{10}(DOFs)*sin(omega*t+phi(4)) ...
-              -aux.force{11}(DOFs)*sin(omega*t+phi(5)) ...
-              -aux.force{12}(DOFs)*sin(omega*t+phi(6)) ...
-              -S(DOFs,DOFs)*y;
+F    = @(t,y) -coilforce(DOFs,:)*sin(omega*t+phi)-S(DOFs,DOFs)*y;
 
 options = odeset('Mass',M(DOFs,DOFs),'OutputFcn',@showprogress_callback);
 [T,u]  = ode15s(F,[0,T_max],zeros(numel(DOFs),1),options);
 
-Az=sparse(Nc,numel(T));
+Az = repmat(asm.dirichlet,1,numel(T));
 Az(DOFs,:)=u';
 clear u;
-% Az(DOFs,:)=0;
 
 
 %% plot solution over time
 NT=size(Az,2);
-
-% bt_norm   = zeros(NT,1);
-% dAzt_norm = zeros(NT,1);
 
 writerObj = VideoWriter('sol_motor.avi');
 open(writerObj);
@@ -171,12 +157,7 @@ for i=2:NT
     view (0,90);
 
     %% plot gradient of scalar potential
-    gradphit =full( aux.force{ 7}*sin(omega*t+phi(1)) ...
-                   +aux.force{ 8}*sin(omega*t+phi(2)) ...
-                   +aux.force{ 9}*sin(omega*t+phi(3)) ...
-                   +aux.force{10}*sin(omega*t+phi(4)) ...
-                   +aux.force{11}*sin(omega*t+phi(5)) ...
-                   +aux.force{12}*sin(omega*t+phi(6)));
+    gradphit = full(coilforce*sin(omega*t+phi));
 
     subplot(2,3,2);
     trisurf (mesh.el,co(:,1),co(:,2),gradphit,'FaceColor','interp','EdgeColor','none','FaceLighting','phong');
