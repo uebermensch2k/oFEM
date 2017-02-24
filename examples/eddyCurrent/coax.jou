@@ -68,10 +68,11 @@ mesh surf all
 
 ################################### save ###########################################################
 #
-export abaqus "C:\Users\P4\Documents\MATLAB\oFEM\trunk\test_env\exer\eddyCurrent\coax.inp" everything dimension 2 overwrite #cubitids
+export abaqus "/Users/dudzinsm/Projects/oFEM/examples/eddyCurrent/coax.inp" everything dimension 2 overwrite #cubitids
 #
 #
 #
+
 
 
 

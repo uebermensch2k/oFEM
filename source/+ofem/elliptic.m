@@ -501,6 +501,7 @@ classdef elliptic < handle
 
                     Ndiri         = numel(opt.dirichlet);
                     aux.dirichlet = cell(Ndiri,1);
+                    aux.dirichletNodes = cell(Ndiri,1);
                 end
 
                 %% Neumann boundary, pressure
@@ -742,6 +743,7 @@ classdef elliptic < handle
             if intdiri==1
                 for i=1:Ndiri
                     nodes = obj.mesh.dirichlet(opt.dirichlet{i}.idx);
+                    aux.dirichletNodes{i}=nodes{1};
                     DOFs  = setdiff(DOFs,nodes{1});
                     aux.dirichlet{i} = obj.dirichlet(opt.dirichlet{i}.f,nodes{1},obj.mesh.co);
                     dirichlet = dirichlet+aux.dirichlet{i};
