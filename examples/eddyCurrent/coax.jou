@@ -1,0 +1,79 @@
+reset
+
+################################ Variablen ####################################################
+
+ #{height_rect=0.01}
+ #{width_rect=0.01}
+
+ #{height_kondensator=0.3}
+ #{width_kondensator=0.3}
+
+#{radius_kreis = 0.001}
+
+#{mesh_size=0.0002}
+################################ Modell ######################################################
+
+create surface rectangle width {width_rect} height {height_rect} zplane
+create surface circle radius {radius_kreis} zplane
+create surface circle radius {2.5*radius_kreis} zplane
+create surface circle radius {4*radius_kreis} zplane
+
+subtract body 4  from body 1  keep
+delete body 1
+subtract body 3  from body 4  keep
+delete body 4
+subtract body 2  from body 3  keep
+delete body 3
+
+############################# merge imprint ############################################################
+imprint curve all
+merge curve all
+
+############################## Blocks ###########################################################
+
+block 1 surf 5
+block 1 name 'Aussenraum'
+
+block 2 surf 2
+block 2 name 'Innenleiter'
+
+block 3 surf 6
+block 3 name 'Aussenleiter'
+
+block 4 surf 7
+block 4 name 'Dielektrikum'
+
+############################ Sidesets #############################################################
+
+Sideset 1 curve 9 to 12
+Sideset 1 name 'Umrandung'
+
+Sideset 2 curve 5
+Sideset 2 name 'Innenrand'
+
+Sideset 3 curve 13
+Sideset 3 name 'Zwischenrand'
+
+Sideset 4 curve 8
+Sideset 4 name 'Aussenrand'
+
+################################ scheme and size ##################################################
+
+surf all scheme trimesh
+surf all size {mesh_size}
+
+################################### mesh ##########################################################
+
+mesh surf all
+
+################################### save ###########################################################
+#
+export abaqus "/Users/dudzinsm/Projects/oFEM/examples/eddyCurrent/coax.inp" everything dimension 2 overwrite #cubitids
+#
+#
+#
+
+
+
+
+

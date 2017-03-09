@@ -1,6 +1,6 @@
 classdef gaussianquadrature
     properties(Access=protected)
-        mesh;
+        dim;
         fe;
     end
 
@@ -69,8 +69,8 @@ classdef gaussianquadrature
         %
         % see also ofem.mesh, ofem.finiteelement
         %
-            obj.mesh = mesh;
-            obj.fe   = fe;
+            obj.dim = mesh.dim;
+            obj.fe  = fe;
         end
 
         %%
@@ -86,12 +86,12 @@ classdef gaussianquadrature
         %
         % see also ofem.finiteelement.phi, ofem.finiteelement.dphi
         %
-            edim = obj.mesh.dim-codim;
+            edim = obj.dim-codim;
             if edim<0
                 error('ofem:gaussianquadrature:data',...
                       'Codimension cannot exceed dimension of embedded space!');
             end
-            [w,l]=quaddata(obj.fe,obj.mesh.dim-codim);
+            [w,l]=quaddata(obj.fe,obj.dim-codim);
         end
     end
 end
