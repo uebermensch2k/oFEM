@@ -4,7 +4,7 @@ close all
 x0      = [0, 0];   %location of lower left edge of hypercube
 expand  = 1;        %expand hypercube
 Nrefine = 2;        %number of mesh-refinements
-Nq      = 5;        %number of querypoints
+Nq      = 15;        %number of querypoints
 
 %% create mesh
 mesh = ofem.mesh;
@@ -22,7 +22,7 @@ co = double(reshape(permute(mesh.co,[3,1,2]),[],size(mesh.co,1)));
 
 %% create querypoints and pointlocation
 xq = [expand*rand(Nq,1), expand*rand(Nq,1)];
-idx = mesh.point_location(xq);
+[idx, tr, bary] = mesh.point_location(xq);
         
 %% plot solution
 for i = 1:numel(idx)
