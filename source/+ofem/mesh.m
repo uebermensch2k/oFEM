@@ -1107,15 +1107,16 @@ classdef mesh < handle
             end
         end
         %% search querypoint in mesh
-        function [idx, tr] = point_location(obj, xq, varargin)
+        function [idx, tr, bary] = point_location(obj, xq, varargin)
         %point_location returns the index of the element which contains the
-        %query-point. idx is the index, tr is the computed aabb-tree. xq is
-        %the query-point. If there are multiple query-points, the vector xq
-        %needs the shape NxM where N is the number of query-points and M is 
-        %the dimension of the query-points. 2D and 3D are supported. With
-        %varargin the user can give an already computed aabb-tree or he can
-        %set the parameter which controls the dividing of the global
-        %boundingboxes. 
+        %query-point. idx is the index, tr is the computed aabb-tree and bary 
+        %are the baryzentric coordinates of the querypoint, depending on the 
+        %vertices of the element in which xq lays. If there are multiple 
+        %query-points, the vector xq needs the shape NxM where N is the 
+        %number of query-points and M is the dimension of the query-points. 
+        %2D and 3D are supported. With varargin the user can give an already
+        %computed aabb-tree or he can set the parameter which controls the 
+        %dividing of the global boundingboxes. 
         %If the function returns NaN, it means that the query-point is not
         %in the given mesh. 
            
@@ -1510,7 +1511,15 @@ classdef mesh < handle
             in = all(aa>=0-tol,2) | all(aa<=0+tol,2);
 
 
-            end
+        end
+            
+        DinvT = obj.jacobiandata();
+        
+        xq1(:,1,:) = xq'; %reshape querypoint-structure to compute baryzentrics    
+        
+        bary = DinvT(:,:,idx)'*(xq1-obj.co(:,1,obj.el(idx,1)));
+        bary = [1-sum(bary,1); bary];
+        bary = double(permute(bary,[3,1,2]));
         
         end %end of pointlocation
         
