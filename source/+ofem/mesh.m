@@ -533,7 +533,45 @@ classdef mesh < handle
                 obj.assign_fe(fe_tmp);
             end
         end
-
+        %%
+        function cog = get_cog(obj)
+            %GET_COG computes the center of gravity for all elements
+            %
+            
+            if ~obj.is_valid()
+                error('ofem:mesh:InvalidMesh','ofem.mesh needs to hold a valid triangulation');
+            end
+            switch obj.type
+                case 'edge'
+                    %% edge
+                    cog = 1/(obj.dim+1)*(obj.co(:,:, obj.el(:,1)) + ...
+                                         obj.co(:,:, obj.el(:,2)));
+                case 'tri'
+                    %% triangle
+                    cog = 1/(obj.dim+1)*(obj.co(:,:, obj.el(:,1)) +...
+                                         obj.co(:,:, obj.el(:,2)) + ...
+                                         obj.co(:,:, obj.el(:,3)));
+                case 'tet'
+                    %% tetrahedron
+                    cog = 1/(obj.dim+1)*(obj.co(:,:, obj.el(:,1)) +...
+                                         obj.co(:,:, obj.el(:,2)) + ...
+                                         obj.co(:,:, obj.el(:,3)) + ...
+                                         obj.co(:,:, obj.el(:,4)));
+                case 'quad'
+                    %% quadrilateral
+                    error('ofem:mesh:NotImplemented',...
+                          'Quadrilateral meshes not supported so far!');
+                case 'hex'
+                    %% hexahedron
+                    error('ofem:mesh:NotImplemented',...
+                          'Hexahedral meshes not supported so far!');
+                otherwise
+                    error('ofem:mesh:Unspecified',...
+                          'Unspecified error found');
+            end
+        end
+        
+        
         %%
         function info=load_from_inp(obj,inp_file_name)
         %LOAD_FROM_INP loads a inp-file into the ofem.mesh class.
@@ -1513,15 +1551,28 @@ classdef mesh < handle
 
         end
             
-        DinvT = obj.jacobiandata();
+       % DinvT = obj.jacobiandata();
         
         xq1(:,1,:) = xq'; %reshape querypoint-structure to compute baryzentrics    
-        
-        bary = DinvT(:,:,idx)'*(xq1-obj.co(:,1,obj.el(idx,1)));
-        bary = [1-sum(bary,1); bary];
-        bary = double(permute(bary,[3,1,2]));
-        
+        bary = obj.barycentric_coordinates(xq1, idx);
+%         bary = DinvT(:,:,idx)'*(xq1-obj.co(:,1,obj.el(idx,1)));
+%         bary = [1-sum(bary,1); bary];
+%         bary = double(permute(bary,[3,1,2]));
+%         
         end %end of pointlocation
+        
+        function bary = barycentric_coordinates(obj,x,idx)
+            % BARYCENTRIC_COORDINATES returns the barycentric coordinates
+            % of points with coordinates x located in elements of index
+            % idx. x is suposed to be a matrixarray with the same structure
+            % as mesh.co. idx is an indexvector containing the elemnt's
+            % numbers x is in.
+            %
+            DinvT = obj.jacobiandata();
+            bary = DinvT(:,:,idx)'*(x-obj.co(:,1,obj.el(idx,1)));
+            bary = [1-sum(bary,1); bary];
+            bary = double(permute(bary,[3,1,2]));
+        end
         
         function export_UCD(obj,folder_name,file_name,meta,varargin)
         %EXPORT_UCD exports solution to inp file.
