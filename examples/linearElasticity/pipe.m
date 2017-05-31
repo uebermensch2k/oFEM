@@ -1,4 +1,4 @@
-close all;  clear;
+%close all;  clear;
 inp_file_name='pipe';
 
 %% load mesh
@@ -48,11 +48,12 @@ fprintf('Assembling stiffness matrix (oFEM) ... \n');
 
 % stiffness matrix and right hand side
 opt.S = 1;
+%opt.D = 1;
 %opt.b = 1;
 opt.force{1} = @myload;
- opt.dirichlet{1}.data =0;
- opt.dirichlet{1}.idx =1;
-[asm,info,~]=eq.assemble(opt);
+opt.dirichlet{1}.data =0;
+opt.dirichlet{1}.idx =1;
+[asm,info,aux]=eq.assemble(opt);
 
 fprintf('done t=%f\n',info.time2assemble);
 
@@ -103,8 +104,8 @@ t=toc;
 fprintf('done t=%f\n',t);
  
 %% export 
-mesh.export_UCD(fullfile(pwd,'solution'), 'pipe', {'U',u, 'm'}, ...
-              {'E', E(:,[1,5,9,6,3,2]), '[]'}, {'S', s{1}', 'GPa'});
+% mesh.export_UCD(fullfile(pwd,'solution'), 'pipe', {'U',u, 'm'}, ...
+%               {'E', E(:,[1,5,9,6,3,2]), '[]'}, {'S', s{1}', 'GPa'});
 
 
             

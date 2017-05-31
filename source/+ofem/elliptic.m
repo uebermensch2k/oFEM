@@ -84,9 +84,9 @@ classdef elliptic < handle
 
         %%
         function D=damping(b,DinvT,detD,phi,dphi,w,l,el,co)
-        %damping returns the damping matrix.
+        %DAMPING returns the damping matrix.
         %
-        % S=damping(b,DinvT,detD,phi,dphi,w,el,co) returns the damping
+        % D=damping(b,DinvT,detD,phi,dphi,w,el,co) returns the damping
         % matrix for the local set of elements specified through el. co are
         % the coordinates of the mesh. DinvT and detD are, respectively,
         % the transposed inverse of the Jacobian of Phi and the Jacobians'
@@ -140,8 +140,7 @@ classdef elliptic < handle
 
         %%
         function M=mass(c,detD,pipj,el,co)
-%         function M=mass(c,detD,phi,w,l,el,co)
-        %mass returns the mass matrix.
+        %MASS returns the mass matrix.
         %
         % M=mass(detD,pipj,el,co) returns the mass matrix for the local set
         % of elements specified through el. co are the coordinates of the
@@ -430,7 +429,9 @@ classdef elliptic < handle
                 else
                     aux.D = cell(Np,1);
                     if ~isfield(opt,'b')
-                        opt.b=[1;0];
+                        %fix
+                        opt.b=zeros(dim,1);
+                        opt.b(1)= 1;
                     end
                 end
 

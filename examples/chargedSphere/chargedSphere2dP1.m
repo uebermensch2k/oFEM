@@ -31,6 +31,8 @@ fprintf('Assembling stiffness matrix (oFEM) ... \n');
 
 % stiffness matrix and right hand side
 opt.S         = 1;
+opt.D         = 1;
+opt.b         = [1;0;0]; 
 opt.dirichlet = struct('idx',1,'f',0);
 opt.force     = @chargeDensity;
 [asm,info,~]  = op.assemble(opt);

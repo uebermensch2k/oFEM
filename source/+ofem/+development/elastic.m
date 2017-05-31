@@ -11,6 +11,109 @@ classdef elastic < handle
     
     methods(Access=protected,Static)
         %%
+        function P=hydrostatic_component(p, DinvT,detD,dphi,w,el,co)
+            %HYDROSTATIC_COMPONENT returns the hydorstatic component of the
+            %sterss tensor induced by an external pressure.
+            %
+            %P=hydrostatic_component(p, DinvT,detD,dphi,w,el,co) returns
+            %the hydorstatic contribution to the stress tensor given by a
+            %pressure induced by other means than load or Neumann boundary
+            %conditions, e.g., diffusion. p has to be an NdxNdxNe
+            %matrixarray, usually p(:,:,k)=-P*I, where P is the pressure
+            %given by the process. The hydorstatic contribution is treated
+            %as a right hand side.
+            %            
+            % see also OFEM.MESH.JACOBIANDATA, OFEM.FINITEELEMENT.PHI,
+            % OFEM.FINITEELEMENT.QUADDATA
+            
+           
+            
+            Ns = size(dphi,1);
+            Nd = size(dphi,2);
+            Nq = size(dphi,3);
+            Ne = size(el,1);
+            Nn = size(el,2);
+            
+            F    = ofem.matrixarray(zeros(Nd,Ns,Ne));
+            
+            
+            for q=1:Nq
+                globdphi = DinvT*dphi(:,:,q)';
+                for j=1:Nd
+                    F =  F + p(j,:,:)'*w(q)*globdphi(j,:,:);
+                end
+            end
+            F = F*detD;
+            I    = repelem(1:Nn,1,Nd); I=I(:);
+            I    = Nd*el(:,I) - repmat((Nd-1):-1:0,Ne,Ns); I=I';
+            P    = sparse(I(:),1,F(:),Nd*size(co,3),1);
+        end
+        
+        %%
+        function D=damping(b,DinvT,detD,phi,dphi,w,l,el,co)
+            %DAMPING returns the damping matrix.
+            %
+            % D=damping(b,DinvT,detD,phi,dphi,w,el,co) returns the damping
+            % matrix for the local set of elements specified through el. co are
+            % the coordinates of the mesh. DinvT and detD are, respectively,
+            % the transposed inverse of the Jacobian of Phi and the Jacobians'
+            % determinants, per element, where Phi denotes the diffeomorphism
+            % taking the reference element to the global one. E.g., for the
+            % i-th element DinvT(:,:,i) is the i-th Jacobians' transposed
+            % inverse and detD(1,1,i) the determinant. See
+            % ofem.mesh.jacobian_data on how these quantities are organized.
+            % phi and dphi contains, respectively, the values of the shape
+            % functions and the shape functions' gradients at quadrature
+            % points, w carries the quadratures rules' weights.
+            % The shape functions phi and the gradients dphi at quadrature
+            % points and weights w of the quadrature rule are expected as
+            % returned by ofem.finiteelement.phi and ofem.finiteelement.dphi.
+            % The quadrature points can be queried from, e.g.,
+            % ofem.quassianquadrature.data.
+            %
+            % See also ofem.mesh.jacobian_data, ofem.finiteelement.phi,
+            % ofem.finiteelement.dphi, ofem.quassianquadrature.data
+            
+            
+            Ns = size(dphi,1);
+            Nd = size(dphi,2);
+            Nq = size(dphi,3);
+            Ne = size(el,1);
+            Nc = size(co,3);
+            D= ofem.matrixarray(zeros(Ns*Nd, Ns*Nd, Ne));
+            if isa(b,'function_handle')
+                Nl   = size(l  ,2); % number of barycentric coordinates
+                elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+                
+                for q=1:Nq
+                    X = elco*(l(q,:)');
+                    D=D+phi(:,q)*((w(q)*b(X))'*(DinvT*dphi(:,:,q)'));
+                end
+            else
+                for q=1:Nq
+                    ph=repelem(phi(:,q),1,Nd);
+                    globdphi = DinvT*dphi(:,:,q)';
+                    for j=1:Nd
+             
+                        D(j:Nd:Nd*Ns,j:Nd:Nd*Ns, : )=D(j:Nd:Nd*Ns,j:Nd:Nd*Ns, :)+ph(:,j)*((w(q)*b(j))'*globdphi(j,:,:));
+                    end
+                end
+            end
+            
+            D=D*detD;
+            I = repmat(1:Ns,Nd*Nd*Ns,1    ); I=I(:);
+            J = repmat(1:Ns,Nd      ,Nd*Ns); J=J(:);
+            
+            I = Nd*el(:,I)-repmat(kron((Nd-1):-1:0,ones(1,Nd*Ns)),Ne,Ns); I=I';
+            J = Nd*el(:,J)-repmat(kron(ones(1,Nd*Ns),(Nd-1):-1:0),Ne,Ns); J=J';
+            D=sparse(J(:),I(:),D(:),Nd*Nc,Nd*Nc);
+            
+            
+        end
+        
+        
+        
+        %%
         function M=mass(c, detD,pipj,el,co)
             %MASS returns the mass matrix.
             %
@@ -86,10 +189,7 @@ classdef elastic < handle
             %             lambda = 115.3846;
             %             mu=1; lambda=1;
             %             lambda = 1.1538e+11; mu = 7.6923e+10;
-            
-            if ~isscalar(lambda) || ~isscalar(mu)
-                
-            end
+           
             
             s1 = sqrt(  lambda+2*mu);
             s2 = sqrt(  lambda+  mu);
@@ -242,6 +342,9 @@ classdef elastic < handle
         end
         
         function setmaterial(obj,lambda,mu)
+            %SETMATERIAL sets Lame's lambda and mu. both of wich can be
+            %different for each part
+            % TO DO: make them both to cell vectors?
             obj.lambda=lambda;
             obj.mu=mu;
         end
@@ -294,12 +397,22 @@ classdef elastic < handle
                     opt.S = 0;
                 else
                     % stiffness matrix requested, check for material
-                    if isfield(opt, 'A')
-                        %if isempty(opt.A)
-                        % set to default
-                    else
-                    end
                     aux.S = cell(Np,1);
+                    if ~isprop(obj,'lambda') && ~isprop(obj, 'mu')
+                        obj.setmaterial(115.3846,76.9231);
+                        obj.lambda = 115.3846*ones(1,Np);
+                        obj.mu      = 76.9231*ones(1,Np);
+                        warning('ofem:elastic:NoMaterialParameters',...
+                            'No Lame constants were given I took those for standard steel in GPa:\n lambda= 115.3846 GPa \n mu=76.9231 GPa')
+                    elseif ~isprop(obj,'lambda')
+                        obj.lambda = 115.3846*ones(1,Np);
+                        warning('ofem:elastic:NoMaterialParameters',...
+                            'No Lame \lambda was given I took the one for standard steel in GPa:\n lambda= 115.3846 GPa \n')
+                    elseif ~isprop(obj,'mu')
+                        obj.mu      = 76.9231*ones(1,Np);
+                        warning('ofem:elastic:NoMaterialParameters',...
+                            'No Lame \mu were given I took the one for standard steel in GPa:\n  mu=76.9231 GPa')
+                    end
                 end
                 
                 %% damping
@@ -307,6 +420,9 @@ classdef elastic < handle
                     opt.D=0;
                 else
                     aux.D = cell(Np,1);
+                    if ~isfield(opt,'b')
+                        opt.b=ones(3,1);
+                    end
                 end
                 
                 %% mass
@@ -325,6 +441,14 @@ classdef elastic < handle
                 else
                     aux.force = cell(Np,1);
                 end
+                
+                %% hydrostatic pressure
+                if ~isfield(opt, 'hydro')
+                    opt.hydro=[];
+                else
+                    aux.hydropress =cell(Np,1);
+                end
+                
                 
                 %% Neumann boundary, pressure
                 if ~isfield(opt,'neumann')
@@ -513,10 +637,7 @@ classdef elastic < handle
             M  = sparse(Nc*Nd, Nc*Nd);
             D  = sparse(Nc*Nd, Nc*Nd);
             b  = sparse(Nc*Nd,1);
-            
-            opt.A=1;
-            opt.b=ones(3,1);
-            %opt.c=1;
+           
             
             tic;
             %             [DinvT,detD] = obj.mesh.jacobiandata;
@@ -533,7 +654,7 @@ classdef elastic < handle
                 dphi  = obj.fe.dphi(l);
                 [DinvT,detD] = obj.mesh.jacobiandata;
                 aux.detD   = detD;
-                
+              
                 % perform assembly
                 for i=1:Np
                     pIdx     = obj.mesh.parts{3,i};
@@ -543,27 +664,48 @@ classdef elastic < handle
                     
                     %% handle stiffness matrix
                     if opt.S==1
-                        aux.S{i} = obj.stiffness(obj.lambda(i), obj.mu(i),DinvTLoc,detDLoc,dphi,w,elemsLoc,obj.mesh.co);
-                        S = S + aux.S{i};
+                       aux.S{i} = obj.stiffness(obj.lambda(i), obj.mu(i),DinvTLoc,detDLoc,dphi,w,elemsLoc,obj.mesh.co);
+                       S = S + aux.S{i};
                     end
                     %% handle damping matrix
                     if opt.D==1
-                        aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,elemsLoc,obj.mesh.co);
+                        if iscell(opt.b)
+                            aux.D{i} = obj.damping(opt.b{i},DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
+                        else
+                            aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
+                        end
                         D = D + aux.D{i};
                     end
                     %% handle mass matrix
                     if opt.M==1
-                        aux.M{i} = obj.mass(opt.c(:,i,pIdx),detDLoc,pipj,elemsLoc,obj.mesh.co);
+                        if iscell(opt.c)
+                            %aux.M{i} = obj.mass(opt.c,detDLoc,phi,w,l,elemsLoc,obj.mesh.co);
+                            aux.M{i} = obj.mass(opt.c{i},detDLoc,pipj,elemsLoc,obj.mesh.co);
+                        else
+                            aux.M{i} = obj.mass(opt.c,detDLoc,pipj,elemsLoc,obj.mesh.co);
+                        end
                         M = M + aux.M{i};
                     end
                 end
                 %% handle volume force matrix
-                if isempty(opt.force)==0
-                    aux.force = obj.load(detD,phi,w,l,opt.force{1},obj.mesh.el,obj.mesh.co);
-                    b = aux.force;
+                if ~isempty(opt.force)
+                    if iscell(opt.force)
+                        aux.force{i} = obj.load(detD,phi,w,l,opt.force{i},obj.mesh.el,obj.mesh.co);
+                    else
+                        aux.force{i} = obj.load(detD,phi,w,l,opt.force,obj.mesh.el,obj.mesh.co);
+                    end
+                    b = b+ aux.force{i};
+                end
+                
+                %% handle hydrostatic pressure
+
+                if ~isempty(opt.hydro)
+                    aux.hydropress{i} = hydrostatic_component(opt.press,DinvT,detD,dphi,w,obj.mesh.el,obj.mesh.co);
+                    b = b+ aux.hydropress{i};
                 end
             end
             
+
             %% surface related integration
             if intface==1
                 % surface quad data
