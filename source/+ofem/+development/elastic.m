@@ -326,64 +326,54 @@ classdef elastic < handle
                     aux.force = cell(Np,1);
                 end
                 
-                %% Neumann boundary, pressure
+               %% Neumann boundary, pressure
                 if ~isfield(opt,'neumann')
                     opt.neumann={};
+                    Nneu=0;
                 else
                     if iscell(opt.neumann)
                         for k=1:numel(opt.neumann)
-                            if ~all(isfield(opt.neumann{k},{'data','idx'}))
+                            if ~all(isfield(opt.neumann{k},{'f','idx'}))
                                 error('ofem:elliptic:InvalidArgument',...
-                                    'opt.neumann{%d} must contain a ''data'' and a ''idx'' field.',k);
+                                      'Each cell entry in opt.neumann must be a struct containing a ''f'' and a ''idx'' field.');
                             end
-                            if ~isnumeric(opt.neumann{k}.idx) || ~isscalar(opt.neumann{k}.idx)
-                                error('ofem:elliptic:InvalidArgument',...
-                                    'opt.neumann{%d}.idx must be a scalar.',k);
-                            end
-                            if opt.neumann{k}.idx>Nbd
-                                error('ofem:elliptic:InvalidArgument',...
-                                    'opt.neumann{%d}.idx exceeds the number of available sidesets.',k);
-                            end
-                            if isnumeric(opt.neumann{k}.data) && isscalar(opt.neumann{k}.data)
-                                val = opt.neumann{k}.data;
-                                opt.neumann{k}.data = @(X) val*ones(1,1,size(X,3));
-                            elseif isa(opt.neumann{k}.data,'function_handle')
+                            if isnumeric(opt.neumann{k}.f) && isscalar(opt.neumann{k}.f)
+                                val = opt.neumann{k}.f;
+                                opt.neumann{k}.f = @(X,N) ofem.matrixarray(val*ones(size(X,1),1,size(X,3)));
+                            elseif isa(opt.neumann{k}.f,'function_handle')
                             else
                                 error('ofem:elliptic:InvalidArgument',...
-                                    'opt.neumann{%d}.data must either be a scalar or a function handle.',k);
+                                      'The ''f'' entry in opt.neumann must either be a scalar or a function handle.');
                             end
                         end
-                    elseif isstruct(opt.neumann) && all(isfield(opt.neumann,{'data','idx'}))
-                        neumanndata = opt.neumann.data;
-                        neumannidx  = opt.neumann.idx ;
+                    elseif isstruct(opt.neumann) && all(isfield(opt.neumann,{'f','idx'}))
+                        neumann_f   = opt.neumann.f  ;
+                        neumann_idx = opt.neumann.idx;
                         
-                        if ~isnumeric(neumannidx) || ~isvector(neumannidx)
+                        if ~isvector(neumann_idx)
                             error('ofem:elliptic:InvalidArgument',...
-                                'opt.neumann.idx must be a vector.');
+                                  'The ''idx'' entry in opt.neumann must be a vector.');
                         end
-                        if opt.neumann.idx>Nbd
-                            error('ofem:elliptic:InvalidArgument',...
-                                'opt.neumann.idx exceeds the number of available sidesets.');
-                        end
-                        if isnumeric(neumanndata) && isscalar(neumanndata)
-                            val = neumanndata;
-                            neumanndata = @(X) val*ones(1,1,size(X,3));
-                        elseif isa(neumanndata,'function_handle')
+                        
+                        if isnumeric(neumann_f) && isscalar(neumann_f)
+                            val       = neumann_f;
+                            neumann_f = @(X,N) ofem.matrixarray(val*ones(size(X,1),1,size(X,3)));
+                        elseif isa(neumann_f,'function_handle')
                         else
                             error('ofem:elliptic:InvalidArgument',...
-                                'opt.neumann.data must either be a scalar or a function handle.');
+                                  'The ''f'' entry in opt.neumann must either be a scalar or a function handle.');
                         end
                         
-                        opt.neumann = cell(numel(neumannidx),1);
-                        for k=1:numel(neumannidx)
-                            opt.neumann{k}.data = neumanndata;
-                            opt.neumann{k}.idx  = neumannidx(k);
+                        opt.neumann = cell(numel(neumann_idx),1);
+                        for k=1:numel(neumann_idx)
+                            opt.neumann{k}.f   = neumann_f;
+                            opt.neumann{k}.idx = neumann_idx(k);
                         end
                     else
                         error('ofem:elliptic:InvalidArgument',...
-                            'opt.neumann must either be a cell array or a structure containing a ''data'' and a ''idx'' field.');
+                              'opt.neumann must either be a cell array or a structure containing a ''f'' and a ''idx'' field.');
                     end
-                    
+
                     Nneu        = numel(opt.neumann);
                     aux.neumann = cell(Nneu,1);
                 end
@@ -575,7 +565,7 @@ classdef elastic < handle
                     [meas,faces,normals,~] = obj.mesh.neumann(opt.neumann{i}.idx);
                     % [TODO] include the correct function!
                     %neumann(meas,phi,w,l,g,faces,normals,co)
-                    aux.neumann{i} = obj.neumann(meas{1},phi,w,l,opt.neumann{i}.data,faces{1},normals{1},obj.mesh.co);
+                    aux.neumann{i} = obj.neumann(meas{1},phi,w,l,opt.neumann{i}.f,faces{1},normals{1},obj.mesh.co);
                     aux.neumannidx(i) = opt.neumann{i}.idx;
                     b = b + aux.neumann{i};
                 end
