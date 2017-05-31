@@ -668,6 +668,7 @@ classdef elliptic < handle
                 phi   = obj.fe.phi(l);
                 dphi  = obj.fe.dphi(l);
                 [DinvT,detD] = obj.mesh.jacobiandata;
+                aux.detD    =detD;
 
                 % perform assembly
                 for i=1:Np
