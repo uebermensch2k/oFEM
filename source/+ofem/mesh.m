@@ -1565,7 +1565,7 @@ classdef mesh < handle
             % BARYCENTRIC_COORDINATES returns the barycentric coordinates
             % of points with coordinates x located in elements of index
             % idx. x is suposed to be a matrixarray with the same structure
-            % as mesh.co. idx is an indexvector containing the elemnt's
+            % as mesh.co. idx is an indexvector containing the element's
             % numbers x is in.
             %
             DinvT = obj.jacobiandata();
