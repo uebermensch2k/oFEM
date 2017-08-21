@@ -11,6 +11,17 @@ classdef elastic < handle
     
     methods(Access=protected,Static)
         %%
+        function D=dampping(b, DinvT, detD,phi,dphi, w, l, el, co)
+            % DAMPING returns the damping matrix
+            %
+            Ns = size(dphi,1);
+            Nd = size(dphi,2);
+            Nq = size(dphi,3);
+            Ne = size(el,1);
+            Nc = size(co,3);
+        end
+        
+        %%
         function M=mass(c, detD,pipj,el,co)
             %MASS returns the mass matrix.
             %

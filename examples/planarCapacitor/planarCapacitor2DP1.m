@@ -1,6 +1,6 @@
 close all;
 clear;
-inp_file_name='planar_capacitor';
+inp_file_name='Michi';
 
 
 %% set constants
@@ -65,7 +65,7 @@ fprintf('done t=%f\n',t);
 
 
 %% export
-mesh.export_UCD(fullfile(pwd,'planarCapacitor'),'export',{'U',u,'V'});
+mesh.export_UCD(fullfile(pwd,'mycapacitor'),'export',{'U',u,'V'});
 
 
 %% plot solution
