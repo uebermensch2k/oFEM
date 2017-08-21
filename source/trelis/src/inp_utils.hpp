@@ -339,7 +339,37 @@ namespace inp_n {
     rpkZ = rpkBuffer+2*crnLength;
     rpkW = rpkBuffer+3*crnLength;
   }
-
+    /**
+     * \brief Creates a matrix with crnLength rows and 5 columns
+     * \param[in] crnLength Length of the array
+     * \param[out] rpkBuffer Data storage location
+     * \param[out] rpkX column of \f$x\f$-values
+     * \param[out] rpkY column of \f$y\f$-values
+     * \param[out] rpkZ column of \f$z\f$-values
+     * \param[out] rpkW column of \f$w\f$-values
+     */
+    template<typename T>
+    void
+    create_vector_array_5d(const size_t  &crnLength,
+                           T            *&rpkBuffer,
+                           T            *&rpkX     ,
+                           T            *&rpkY     ,
+                           T            *&rpkZ     ,
+                           T            *&rpkW     ,
+                           T            *&rpkV     )
+    {
+        rpkBuffer = NULL;
+        rpkBuffer = (T*) mxCalloc(4*crnLength, sizeof(T));
+        
+        if (!rpkBuffer)
+            throw std::string("create_vector_array_4d: mxCalloc failed");
+        
+        rpkX = rpkBuffer;
+        rpkY = rpkBuffer+  crnLength;
+        rpkZ = rpkBuffer+2*crnLength;
+        rpkW = rpkBuffer+3*crnLength;
+        rpkV = rpkBuffer+3*crnLength;
+    }
 
   /**
    * \brief Free space occupied by rpkBuffer
