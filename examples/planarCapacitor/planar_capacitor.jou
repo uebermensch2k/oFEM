@@ -60,12 +60,19 @@ surf all size {mesh_size}
 mesh surf all
 refine surf 2,3 numsplit 2 bias 2 depth 4 smooth
 
+################################### renumber elements ############################################
+### ALWAYS USE THIS LINE STARTING AT TRELLIS 16.1 ##################
+renumber Element all Start_id 1 Uniqueids
+
+
 ############################# save ###########################################################
 #
-export abaqus "/Users/dudzinsm/Projects/oFEM/projects/exercises/planarCapacitor/planar_capacitor.inp" everything dimension 2 overwrite #cubitids
+export abaqus "C:\Users\Hagel\Documents\Projects\OFEM\oFEM\examples\planarCapacitor\planar_capacitor.inp" everything dimension 2 overwrite #cubitids
 #
 #
 #
+
+
 
 
 
