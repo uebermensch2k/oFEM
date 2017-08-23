@@ -359,7 +359,7 @@ namespace inp_n {
                            T            *&rpkV     )
     {
         rpkBuffer = NULL;
-        rpkBuffer = (T*) mxCalloc(4*crnLength, sizeof(T));
+        rpkBuffer = (T*) mxCalloc(5*crnLength, sizeof(T));
         
         if (!rpkBuffer)
             throw std::string("create_vector_array_4d: mxCalloc failed");
@@ -368,7 +368,7 @@ namespace inp_n {
         rpkY = rpkBuffer+  crnLength;
         rpkZ = rpkBuffer+2*crnLength;
         rpkW = rpkBuffer+3*crnLength;
-        rpkV = rpkBuffer+3*crnLength;
+        rpkV = rpkBuffer+4*crnLength;
     }
 
   /**
