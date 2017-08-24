@@ -13,6 +13,10 @@ set tetmesher optimize level 3 overconstrained  off sliver  off
 set tetmesher boundary recovery  off 
 volume 1 tetmesh growth_factor 1.0
 mesh volume 1
+################################## renumber elements ##################################
+renumber tet all start_id 1 uniqueids
+
 export abaqus "/Users/dmichal/Projects/oFEM/trunk/test_env/exer/linearElasticity/pipe.inp" dimension 3 everything overwrite
+
 
 
