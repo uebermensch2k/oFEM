@@ -45,7 +45,7 @@ namespace inp_n {
         
         mxSetData(pkElemsMatrix, m_akSetsTri[nCurrSetTri].m_pfBuffer);
         mxSetM   (pkElemsMatrix, m_akSetsTri[nCurrSetTri].m_nLength );
-        mxSetN   (pkElemsMatrix, 3                                  );
+        mxSetN   (pkElemsMatrix, 4                                  );
 
         mxSetCell(pkCell,i*2+1,pkElemsMatrix);
 
@@ -63,7 +63,7 @@ namespace inp_n {
         
         mxSetData(pkElemsMatrix, m_akSetsTetra[nCurrSetTetra].m_pfBuffer);
         mxSetM   (pkElemsMatrix, m_akSetsTetra[nCurrSetTetra].m_nLength );
-        mxSetN   (pkElemsMatrix, 4                                      );
+        mxSetN   (pkElemsMatrix, 5                                      );
 
         mxSetCell(pkCell,i*2+1,pkElemsMatrix);
 
@@ -100,14 +100,19 @@ namespace inp_n {
   inp_elements_section::read_element_tri(const string &crkLine,
                                          double       &rfN1   ,
                                          double       &rfN2   ,
-                                         double       &rfN3   )
+                                         double       &rfN3   ,
+                                         double       &rfID
+                                         )
   const
   {
     size_t nNodeID=0;
     stringstream kStream(crkLine);
     
     char c=0;
-    
+      
+    kStream>>nNodeID;
+    rfID=nNodeID;
+      
     do { kStream.get(c); } while ( c!=',');
     kStream>>nNodeID;
     rfN1=nNodeID;
@@ -126,13 +131,17 @@ namespace inp_n {
                                            double       &rfN1   ,
                                            double       &rfN2   ,
                                            double       &rfN3   ,
-                                           double       &rfN4   )
+                                           double       &rfN4   ,
+                                           double       &rfID    )
   const
   {
     size_t nNodeID=0;
     stringstream kStream(crkLine);
 
     char c=0;
+      
+    kStream>>nNodeID;
+    rfID=nNodeID;
 
     do { kStream.get(c); } while ( c!=',');
     kStream>>nNodeID;
@@ -323,7 +332,7 @@ namespace inp_n {
     int    nCurrSetTri=-1;
     int    nCurrSetTetra=-1;
 
-    double n1,n2,n3,n4;
+    double n1,n2,n3,n4, ID;
     
     string kLine;
 
@@ -420,12 +429,24 @@ namespace inp_n {
           if (!kSectionType.compare("STRI3"))
           {
             ++nCurrSetTri;
-            
+            // vector for indices
+              
+         
+              
+\
+             /*
             create_vector_array_3d(m_akSetsTri[nCurrSetTri].m_nLength ,
                                    m_akSetsTri[nCurrSetTri].m_pfBuffer,
                                    m_akSetsTri[nCurrSetTri].m_pfN1    ,
                                    m_akSetsTri[nCurrSetTri].m_pfN2    ,
                                    m_akSetsTri[nCurrSetTri].m_pfN3    );
+              */
+              create_vector_array_4d(m_akSetsTri[nCurrSetTri].m_nLength ,
+                                     m_akSetsTri[nCurrSetTri].m_pfBuffer,
+                                     m_akSetsTri[nCurrSetTri].m_pfId    ,
+                                     m_akSetsTri[nCurrSetTri].m_pfN1    ,
+                                     m_akSetsTri[nCurrSetTri].m_pfN2    ,
+                                     m_akSetsTri[nCurrSetTri].m_pfN3    );
             
             eState=SS_read_element_tri;
 //            mexPrintf("Switching from SS_read_set_header to SS_read_element_tri\n");
@@ -436,8 +457,9 @@ namespace inp_n {
           {
             ++nCurrSetTetra;
             
-            create_vector_array_4d(m_akSetsTetra[nCurrSetTetra].m_nLength ,
+            create_vector_array_5d(m_akSetsTetra[nCurrSetTetra].m_nLength ,
                                    m_akSetsTetra[nCurrSetTetra].m_pfBuffer,
+                                   m_akSetsTetra[nCurrSetTetra].m_pfId      ,
                                    m_akSetsTetra[nCurrSetTetra].m_pfN1    ,
                                    m_akSetsTetra[nCurrSetTetra].m_pfN2    ,
                                    m_akSetsTetra[nCurrSetTetra].m_pfN3    ,
@@ -471,11 +493,12 @@ namespace inp_n {
             break;
           }
 
-          read_element_tri(kLine,n1,n2,n3);
+          read_element_tri(kLine,n1,n2,n3, ID);
           m_akSetsTri[nCurrSetTri].m_pfN1[nCurrSetQuantity]=n1;
           m_akSetsTri[nCurrSetTri].m_pfN2[nCurrSetQuantity]=n2;
           m_akSetsTri[nCurrSetTri].m_pfN3[nCurrSetQuantity]=n3;
-          
+            //
+          m_akSetsTri[nCurrSetTri].m_pfId[nCurrSetQuantity]=ID;
           ++nCurrSetQuantity;
 
           break;
@@ -498,12 +521,13 @@ namespace inp_n {
             break;
           }
 
-          read_element_tetra(kLine,n1,n2,n3,n4);
+          read_element_tetra(kLine,n1,n2,n3,n4,ID);
 //          mexPrintf("coordinate: %f, %f, %f,\n",x,y,z);
           m_akSetsTetra[nCurrSetTetra].m_pfN1[nCurrSetQuantity]=n1;
           m_akSetsTetra[nCurrSetTetra].m_pfN2[nCurrSetQuantity]=n2;
           m_akSetsTetra[nCurrSetTetra].m_pfN3[nCurrSetQuantity]=n3;
           m_akSetsTetra[nCurrSetTetra].m_pfN4[nCurrSetQuantity]=n4;
+          m_akSetsTetra[nCurrSetTetra].m_pfId[nCurrSetQuantity]=ID;
           
           ++nCurrSetQuantity;
 
