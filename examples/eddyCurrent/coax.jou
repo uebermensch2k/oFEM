@@ -66,13 +66,12 @@ surf all size {mesh_size}
 
 mesh surf all
 
-################################### renumber elements ############################################
-### ALWAYS USE THIS LINE STARTING AT TRELLIS 16.1 ##################
-renumber Element all Start_id 1 Uniqueids
+################################## renumber elements ##################################
+renumber element all start_id 1 uniqueids
 
 ################################### save ###########################################################
 #
-export abaqus "C:\Users\Hagel\Documents\Projects\OFEM\oFEM\examples\eddyCurrent/coax.inp" everything dimension 2 overwrite #cubitids
+export abaqus "/Users/dudzinsm/Projects/oFEM/examples/eddyCurrent/coax.inp" everything dimension 2 overwrite #cubitids
 #
 #
 #

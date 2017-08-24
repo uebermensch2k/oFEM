@@ -59,12 +59,11 @@ mesh group ns
 mesh vol all
 #refine volume 1 numsplit 1 bias 1 depth 1 smooth
 
-################################### renumber elements ############################################
-### ALWAYS USE THIS LINE STARTING AT TRELLIS 16.1 ##################
-renumber Element all Start_id 1 Uniqueids
+########################### renumber elements ############################################
+renumber element all start_id 1 uniqueids
 
 ## export
-export abaqus "C:\Users\Hagel\Documents\Projects\OFEM\oFEM\examples\chargedSphere/chargedSphere.inp" dimension 3 everything overwrite #cubitids
+export abaqus "/Users/dmichal/Documents/tet/lehre/2015/HT/MANF/uebung/uebung4/meshes/chargedSphere.inp" dimension 3 everything overwrite #cubitids
 
 
 

@@ -65,7 +65,7 @@ fprintf('done t=%f\n',t);
 
 
 %% export
-mesh.export_UCD(fullfile(pwd,'planarCapacitor'),'export',{'U',u,'V'});
+mesh.export_UCD(fullfile(pwd,'PlanarCapcitor'),'export',{'U',u,'V'});
 
 
 %% plot solution

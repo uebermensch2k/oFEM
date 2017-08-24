@@ -616,22 +616,34 @@ classdef mesh < handle
 
             %% elements
             elaux  = inp{2,2};
-            obj.el = vertcat(elaux{2,:});
-
             %% parts
             Nparts    = numel(elaux(1,:));
+            Nelems =0;
+            % ids       =cell(1,Nparts);
             obj.parts = cell(3,Nparts);
-
-            % set name
             obj.parts(1,:) = elaux(1,:);
-            % and indices
-            max_idx=0;
-            for i=1:Nparts
-                Nel            = size(elaux{2,i},1);
-                obj.parts{3,i} = max_idx+(1:Nel)';
-                max_idx        = max_idx+Nel;
+            
+            
+            for i =1:Nparts
+               % ids            = elaux{2,i}(:,1);
+                obj.el(elaux{2,i}(:,1),:)  = elaux{2,i}(:,2:end);
+                obj.parts{3,i} = elaux{2,i}(:,1);
+                Nelems         = Nelems + size(elaux{2,i},1);
             end
-            clear elaux;
+            
+%             
+%             obj.parts = cell(3,Nparts);
+% 
+%             set name
+%             obj.parts(1,:) = elaux(1,:);
+%             and indices
+%             max_idx=0;
+%             for i=1:Nparts
+%                 Nel            = size(elaux{2,i},1);
+%                 obj.parts{3,i} = max_idx+(1:Nel)';
+%                 max_idx        = max_idx+Nel;
+%             end
+            clear elaux; % ids;
 
             %% element type
             nodes_per_elem=size(obj.el,2);
