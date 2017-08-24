@@ -3,7 +3,7 @@ function compile()
 cd 'src';
 
 %% compile assembly interface
-mex inp_read_asm.cpp inp_assembly_section.cpp -v
+mex inp_read_asm.cpp inp_assembly_section.cpp
 
 %% compile coordinates interface
 mex inp_read_coords.cpp inp_nodes_section.cpp
