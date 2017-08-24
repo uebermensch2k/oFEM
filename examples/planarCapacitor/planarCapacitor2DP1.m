@@ -1,6 +1,6 @@
 close all;
 clear;
-inp_file_name='planar_capcitor';
+inp_file_name='planar_capacitor';
 
 
 %% set constants
