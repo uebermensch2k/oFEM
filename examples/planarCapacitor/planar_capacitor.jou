@@ -62,7 +62,7 @@ refine surf 2,3 numsplit 2 bias 2 depth 4 smooth
 
 ############################# save ###########################################################
 #
-export abaqus "/Users/marcorozgic/Documents/HSU/oFEM/examples/planarCapacitor/testOld.inp" everything dimension 2 overwrite #cubitids
+export abaqus "/Users/marcorozgic/Documents/HSU/oFEM/examples/planarCapacitor/planar_capacitor.inp" everything dimension 2 overwrite #cubitids
 #
 #
 #
