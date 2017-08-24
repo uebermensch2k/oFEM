@@ -619,15 +619,15 @@ classdef mesh < handle
             %% parts
             Nparts    = numel(elaux(1,:));
             Nelems =0;
-            ids       =cell(1,Nparts);
+            % ids       =cell(1,Nparts);
             obj.parts = cell(3,Nparts);
             obj.parts(1,:) = elaux(1,:);
             
             
             for i =1:Nparts
-                ids            = elaux{2,i}(:,1);
-                obj.el(ids,:)  = elaux{2,i}(:,2:end);
-                obj.parts{3,i} = ids;
+               % ids            = elaux{2,i}(:,1);
+                obj.el(elaux{2,i}(:,1),:)  = elaux{2,i}(:,2:end);
+                obj.parts{3,i} = elaux{2,i}(:,1);
                 Nelems         = Nelems + size(elaux{2,i},1);
             end
             
@@ -643,7 +643,7 @@ classdef mesh < handle
 %                 obj.parts{3,i} = max_idx+(1:Nel)';
 %                 max_idx        = max_idx+Nel;
 %             end
-            clear elaux ids;
+            clear elaux; % ids;
 
             %% element type
             nodes_per_elem=size(obj.el,2);
