@@ -362,7 +362,7 @@ namespace inp_n {
         rpkBuffer = (T*) mxCalloc(5*crnLength, sizeof(T));
         
         if (!rpkBuffer)
-            throw std::string("create_vector_array_4d: mxCalloc failed");
+            throw std::string("create_vector_array_5d: mxCalloc failed");
         
         rpkX = rpkBuffer;
         rpkY = rpkBuffer+  crnLength;

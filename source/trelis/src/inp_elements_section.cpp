@@ -459,7 +459,7 @@ namespace inp_n {
             
             create_vector_array_5d(m_akSetsTetra[nCurrSetTetra].m_nLength ,
                                    m_akSetsTetra[nCurrSetTetra].m_pfBuffer,
-                                   m_akSetsTetra[nCurrSetTri].m_pfId      ,
+                                   m_akSetsTetra[nCurrSetTetra].m_pfId      ,
                                    m_akSetsTetra[nCurrSetTetra].m_pfN1    ,
                                    m_akSetsTetra[nCurrSetTetra].m_pfN2    ,
                                    m_akSetsTetra[nCurrSetTetra].m_pfN3    ,

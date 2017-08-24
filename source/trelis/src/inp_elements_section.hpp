@@ -62,7 +62,7 @@ namespace inp_n {
       double     *m_pfN2        ;
       double     *m_pfN3        ;
       double     *m_pfN4        ;
-        double   *m_pfId        ;
+      double     *m_pfId        ;
 
       elements_tetra()
       :
