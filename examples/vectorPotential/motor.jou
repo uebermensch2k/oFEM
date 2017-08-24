@@ -125,10 +125,6 @@ mesh surface all
 refine surface all numsplit 2 bias 1.0 depth 1 smooth
 
 
-################################### renumber elements ############################################
-### ALWAYS USE THIS LINE STARTING AT TRELLIS 16.1 ##################
-renumber Element all Start_id 1 Uniqueids
-
 
 ## export mesh
 export abaqus "/Users/dmichal/Documents/tet/lehre/2015/MANF/uebung/uebung10/meshes/motor.inp" dimension 2 overwrite 
