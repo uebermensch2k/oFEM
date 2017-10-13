@@ -1,11 +1,16 @@
-function [T,mesh] = heatRobin(xpts,tpts,f,T0,varargin)
+function [intT,T,mesh] = heatRobin(xpts,tpts,f,T0,varargin)
 %heatRobin computes solution of heat equation
 %
 % T=
 %
 % U=heatRobin(x,t,f,T0,coeffs), given an array of function handles f, computes
 % for each function handle f_i the solution U at spatial points x and time
-% instances t. The underlying PDE is a convection-diffusion equation
+% instances t. 
+%
+% w is the weight function giving differing degrees of importance to each
+% location.
+%
+% The underlying PDE is a convection-diffusion equation
 %
 %   c_P rho \left(\frac{\partial T}{\partial t}+v\cdot\nabla T\right)-\nabla\cdot(k\nabla T)=s
 %
@@ -61,6 +66,17 @@ function [T,mesh] = heatRobin(xpts,tpts,f,T0,varargin)
             error('heatRobin:argchk','Input argument ''coeffs.T_a'' need to be a scalar or a vector of length 4');
         elseif isscalar(coeffs.T_a)
             coeffs.T_a=coeffs.T_a*ones(4,1);
+        end
+        if ~isscalar(coeffs.h) && numel(coeffs.h)~=4
+            error('heatRobin:argchk','Input argument ''coeffs.T_a'' need to be a scalar or a vector of length 4');
+        elseif isscalar(coeffs.h)
+            coeffs.h=coeffs.h*ones(4,1);
+        end
+        if ~isfield(coeffs,'w')
+            coeffs.w =@(x) 1+0*x(1,:)+0*x(2,:);
+        end
+        if ~isfield(coeffs,'tMax')
+            coeffs.tMax = max(tpts);
         end
     end
 
@@ -153,10 +169,10 @@ function [T,mesh] = heatRobin(xpts,tpts,f,T0,varargin)
     opt.D     = 1; % compute damping
     opt.b     = coeffs.v*coeffs.c_P*coeffs.rho;
     % Robin conditions
-    opt.robin{1} = struct('idx',1,'alpha',coeffs.h,'f',coeffs.h*coeffs.T_a(1));
-    opt.robin{2} = struct('idx',2,'alpha',coeffs.h,'f',coeffs.h*coeffs.T_a(2));
-    opt.robin{3} = struct('idx',3,'alpha',coeffs.h,'f',coeffs.h*coeffs.T_a(3));
-    opt.robin{4} = struct('idx',4,'alpha',coeffs.h,'f',coeffs.h*coeffs.T_a(4));
+    opt.robin{1} = struct('idx',1,'alpha',coeffs.h(1),'f',coeffs.h(1)*coeffs.T_a(1));
+    opt.robin{2} = struct('idx',2,'alpha',coeffs.h(2),'f',coeffs.h(2)*coeffs.T_a(2));
+    opt.robin{3} = struct('idx',3,'alpha',coeffs.h(3),'f',coeffs.h(3)*coeffs.T_a(3));
+    opt.robin{4} = struct('idx',4,'alpha',coeffs.h(4),'f',coeffs.h(4)*coeffs.T_a(4));
 %     opt.robin.idx   = 1;
 %     opt.robin.alpha = coeffs.h;
 %     opt.robin.f     = coeffs.h*coeffs.T_a;
@@ -188,17 +204,28 @@ function [T,mesh] = heatRobin(xpts,tpts,f,T0,varargin)
     odeopt = odeset('Mass',M(DOFs,DOFs),'Stats','on');
 %     sol    = ode45(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
 %     sol    = ode15s(@(t,x) (t<=0.5)*b_f(DOFs)+b_r(DOFs)-A*x,tpts,T0(DOFs),odeopt);
-    sol    = ode15s(@(t,x) b_f(DOFs)+b_r(DOFs)-A*x,tpts,T0(DOFs),odeopt);
+    sol    = ode15s(@(t,x) b_f(DOFs)*(t<coeffs.tMax)+b_r(DOFs)-A*x,tpts,T0(DOFs),odeopt);
 %     sol    = ode23s(@(t,x) b(DOFs)-A*x,tpts,T0(DOFs),odeopt);
     clear M b b_f b_r;
     T_t    = deval(sol,tpts);
     clear sol DOFs;
 
     TR     = triangulation(mesh.el,permute(double(mesh.co),[3,1,2]));
-    [i,l]  = pointLocation(TR,xpts);
+    [i,l]  = mesh.pointLocation(TR,xpts);
     clear TR;
     T      = reshape(T_t(mesh.el(i,:),:),[],size(mesh.el,2),numel(tpts));
     T      = reshape(dot(T,repmat(fe.phi(l)',1,1,numel(tpts)),2),[],numel(tpts));
+    
+    mids = mesh.get_cog();
+    weights = coeffs.w(squeeze(mids))';
+    weights = repmat(weights,3,1);
+    bary = mesh.barycentric_coordinates(mids,1:size(mesh.el,1));
+    Tmid = T_t(mesh.el,1:end);
+    Tmid = Tmid.*bary(:).*repmat(weights,1,size(Tmid,2));
+    [~,detD] = mesh.jacobiandata();
+    detD = repmat(squeeze(detD)/2,3,1);
+    intR = detD'*Tmid;
+    intT = intR;
 
     visualize=1;
     if visualize
