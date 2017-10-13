@@ -13,7 +13,7 @@ eps3_r = 1; % Room
 
 
 %% load mesh
-fprintf('Loading mesh ... ');
+fprintf('Loading mesh ... \n');
 tic
 mesh=ofem.mesh;
 mesh.load_from_inp(inp_file_name);

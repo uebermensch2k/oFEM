@@ -283,7 +283,7 @@ namespace inp_n {
     
     while ((eState!=SS_out_sidesets_section) && getline_checked(rkInpFileStream,kLine))
     {
-      mexPrintf("read structure line  : %s.\n",kLine.c_str());
+//      mexPrintf("read structure line  : %s.\n",kLine.c_str());
       
       /* check for scanner state */
       switch (eState)
@@ -453,7 +453,7 @@ namespace inp_n {
     
     while ((eState!=SS_out_sidesets_section) && getline_checked(rkInpFileStream,kLine))
     {
-      mexPrintf("read contents line  : %s.\n",kLine.c_str());
+//      mexPrintf("read contents line  : %s.\n",kLine.c_str());
       
       /* check for scanner state */
       switch (eState)
