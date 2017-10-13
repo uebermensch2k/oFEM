@@ -203,3 +203,11 @@ sympy-plots-for-*.tex/
 *.cubin
 *.fatbin
 /.project
+.DS_Store
+examples/planarCapacitor/PlanarCapcitor/export.inp
+
+# Media files
+.avi
+.jpg
+.jpeg
+.png
