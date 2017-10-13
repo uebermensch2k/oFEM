@@ -820,7 +820,7 @@ classdef mesh < handle
                 case 'tri'
                     %% triangle
                     obj.fa        = obj.el;
-                    obj.el2fa     = 1:Nt;
+                    obj.el2fa     = (1:Nt)';
                     obj.el2fasign = ones(Nt,1);
 
                 case 'quad'
@@ -852,7 +852,7 @@ classdef mesh < handle
 
             [obj.fa,I]    = sort(obj.fa,2);
             I             = I(:,2)-I(:,1);
-            [obj.fa,~,ic] = unique(obj.ed,'rows','stable');
+            [obj.fa,~,ic] = unique(obj.fa,'rows','stable');
             obj.el2fa     = reshape(ic,Nt,[]);
             obj.el2fasign = cast(reshape(I,Nt,[]),'INT8');
         end
