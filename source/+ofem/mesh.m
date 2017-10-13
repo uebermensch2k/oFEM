@@ -42,6 +42,12 @@ classdef mesh < handle
         % element is the same (value equals 1) direction or opposite (value
         % equals -1) direction as compared to ed.
         el2edsign
+        
+        %
+        el2fa;
+        
+        % 
+        el2fasign;
 
         % parts is a cell array with 3=size(parts,1) containing in each
         % column the name of the element set, the index into the material
@@ -846,9 +852,9 @@ classdef mesh < handle
 
             [obj.fa,I]    = sort(obj.fa,2);
             I             = I(:,2)-I(:,1);
-            [obj.ed,~,ic] = unique(obj.ed,'rows','stable');
-            obj.el2ed     = reshape(ic,Nt,[]);
-            obj.el2edsign = INT8(reshape(I,Nt,[]));
+            [obj.fa,~,ic] = unique(obj.ed,'rows','stable');
+            obj.el2fa     = reshape(ic,Nt,[]);
+            obj.el2fasign = cast(reshape(I,Nt,[]),'INT8');
         end
 
         %%
