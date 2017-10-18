@@ -42,6 +42,12 @@ classdef mesh < handle
         % element is the same (value equals 1) direction or opposite (value
         % equals -1) direction as compared to ed.
         el2edsign
+        
+        %
+        el2fa;
+        
+        % 
+        el2fasign;
 
         % parts is a cell array with 3=size(parts,1) containing in each
         % column the name of the element set, the index into the material
@@ -616,22 +622,34 @@ classdef mesh < handle
 
             %% elements
             elaux  = inp{2,2};
-            obj.el = vertcat(elaux{2,:});
-
             %% parts
             Nparts    = numel(elaux(1,:));
+            Nelems =0;
+            % ids       =cell(1,Nparts);
             obj.parts = cell(3,Nparts);
-
-            % set name
             obj.parts(1,:) = elaux(1,:);
-            % and indices
-            max_idx=0;
-            for i=1:Nparts
-                Nel            = size(elaux{2,i},1);
-                obj.parts{3,i} = max_idx+(1:Nel)';
-                max_idx        = max_idx+Nel;
+            
+            
+            for i =1:Nparts
+               % ids            = elaux{2,i}(:,1);
+                obj.el(elaux{2,i}(:,1),:)  = elaux{2,i}(:,2:end);
+                obj.parts{3,i} = elaux{2,i}(:,1);
+                Nelems         = Nelems + size(elaux{2,i},1);
             end
-            clear elaux;
+            
+%             
+%             obj.parts = cell(3,Nparts);
+% 
+%             set name
+%             obj.parts(1,:) = elaux(1,:);
+%             and indices
+%             max_idx=0;
+%             for i=1:Nparts
+%                 Nel            = size(elaux{2,i},1);
+%                 obj.parts{3,i} = max_idx+(1:Nel)';
+%                 max_idx        = max_idx+Nel;
+%             end
+            clear elaux; % ids;
 
             %% element type
             nodes_per_elem=size(obj.el,2);
@@ -802,7 +820,7 @@ classdef mesh < handle
                 case 'tri'
                     %% triangle
                     obj.fa        = obj.el;
-                    obj.el2fa     = 1:Nt;
+                    obj.el2fa     = (1:Nt)';
                     obj.el2fasign = ones(Nt,1);
 
                 case 'quad'
@@ -834,9 +852,9 @@ classdef mesh < handle
 
             [obj.fa,I]    = sort(obj.fa,2);
             I             = I(:,2)-I(:,1);
-            [obj.ed,~,ic] = unique(obj.ed,'rows','stable');
-            obj.el2ed     = reshape(ic,Nt,[]);
-            obj.el2edsign = INT8(reshape(I,Nt,[]));
+            [obj.fa,~,ic] = unique(obj.fa,'rows','stable');
+            obj.el2fa     = reshape(ic,Nt,[]);
+            obj.el2fasign = cast(reshape(I,Nt,[]),'INT8');
         end
 
         %%

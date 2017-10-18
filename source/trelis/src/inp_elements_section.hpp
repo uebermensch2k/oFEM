@@ -35,6 +35,7 @@ namespace inp_n {
       double     *m_pfN1        ;
       double     *m_pfN2        ;
       double     *m_pfN3        ;
+      double     *m_pfId        ;
 
       elements_tri()
       :
@@ -44,7 +45,8 @@ namespace inp_n {
       m_pfBuffer(NULL),
       m_pfN1(NULL),
       m_pfN2(NULL),
-      m_pfN3(NULL)
+      m_pfN3(NULL),
+      m_pfId(NULL)
       {
         /**/
       }
@@ -60,6 +62,7 @@ namespace inp_n {
       double     *m_pfN2        ;
       double     *m_pfN3        ;
       double     *m_pfN4        ;
+      double     *m_pfId        ;
 
       elements_tetra()
       :
@@ -70,7 +73,8 @@ namespace inp_n {
       m_pfN1(NULL),
       m_pfN2(NULL),
       m_pfN3(NULL),
-      m_pfN4(NULL)
+      m_pfN4(NULL),
+      m_pfId(NULL)
       {
         /**/
       }
@@ -96,8 +100,8 @@ namespace inp_n {
     }; /* enum eScanState */
 
     void read_set_header   (const std::string &crkLine, std::string &rkSectionName, std::string &rkSectionType) const;
-    void read_element_tri  (const std::string &crkLine, double &rfN1, double &rfN2, double &rfN3) const;
-    void read_element_tetra(const std::string &crkLine, double &rfN1, double &rfN2, double &rfN3, double &rfN4) const;
+    void read_element_tri  (const std::string &crkLine, double &rfN1, double &rfN2, double &rfN3, double &rfID) const;
+    void read_element_tetra(const std::string &crkLine, double &rfN1, double &rfN2, double &rfN3, double &rfN4, double &rfID) const;
 
     bool read_structure(std::ifstream &rkInpFileStream);
     void read_contents (std::ifstream &rkInpFileStream);

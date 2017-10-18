@@ -75,11 +75,13 @@ classdef elastic < handle
             % ofem.finiteelement.dphi, ofem.quassianquadrature.data
             
             
+
             Ns = size(dphi,1);
             Nd = size(dphi,2);
             Nq = size(dphi,3);
             Ne = size(el,1);
             Nc = size(co,3);
+            
             D= ofem.matrixarray(zeros(Ns*Nd, Ns*Nd, Ne));
             if isa(b,'function_handle')
                 Nl   = size(l  ,2); % number of barycentric coordinates
@@ -118,7 +120,7 @@ classdef elastic < handle
         end
         
         
-        
+
         %%
         function M=mass(c, detD,pipj,el,co)
             %MASS returns the mass matrix.
