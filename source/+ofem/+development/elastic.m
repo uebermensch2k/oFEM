@@ -11,16 +11,116 @@ classdef elastic < handle
     
     methods(Access=protected,Static)
         %%
-        function D=dampping(b, DinvT, detD,phi,dphi, w, l, el, co)
-            % DAMPING returns the damping matrix
+        function P=hydrostatic_component(p, DinvT,detD,dphi,w,el,co)
+            %HYDROSTATIC_COMPONENT returns the hydorstatic component of the
+            %sterss tensor induced by an external pressure.
             %
+            %P=hydrostatic_component(p, DinvT,detD,dphi,w,el,co) returns
+            %the hydorstatic contribution to the stress tensor given by a
+            %pressure induced by other means than load or Neumann boundary
+            %conditions, e.g., diffusion. p has to be an NdxNdxNe
+            %matrixarray, usually p(:,:,k)=-P*I, where P is the pressure
+            %given by the process. The hydorstatic contribution is treated
+            %as a right hand side.
+            %
+            % see also OFEM.MESH.JACOBIANDATA, OFEM.FINITEELEMENT.PHI,
+            % OFEM.FINITEELEMENT.QUADDATA
+            
+            
+            
+            Ns = size(dphi,1);
+            Nd = size(dphi,2);
+            Nq = size(dphi,3);
+            Ne = size(el,1);
+            Nn = size(el,2);
+            
+            F    = ofem.matrixarray(zeros(Nd,Ns,Ne));
+            
+            
+            for q=1:Nq
+                globdphi = DinvT*dphi(:,:,q)';
+                for j=1:Nd
+                    F =  F + p(j,:,:)'*w(q)*globdphi(j,:,:);
+                end
+            end
+            F    = F*detD;
+            I    = repelem(1:Nn,1,Nd); I=I(:);
+            I    = Nd*el(:,I) - repmat((Nd-1):-1:0,Ne,Ns); I=I';
+            P    = sparse(I(:),1,F(:),Nd*size(co,3),1);
+        end
+        
+        %%
+        function D=damping(b,DinvT,detD,phi,dphi,w,l,el,co)
+            %DAMPING returns the damping matrix.
+            %
+            % D=damping(b,DinvT,detD,phi,dphi,w,el,co) returns the damping
+            % matrix for the local set of elements specified through el. co are
+            % the coordinates of the mesh. DinvT and detD are, respectively,
+            % the transposed inverse of the Jacobian of Phi and the Jacobians'
+            % determinants, per element, where Phi denotes the diffeomorphism
+            % taking the reference element to the global one. E.g., for the
+            % i-th element DinvT(:,:,i) is the i-th Jacobians' transposed
+            % inverse and detD(1,1,i) the determinant. See
+            % ofem.mesh.jacobian_data on how these quantities are organized.
+            % phi and dphi contains, respectively, the values of the shape
+            % functions and the shape functions' gradients at quadrature
+            % points, w carries the quadratures rules' weights.
+            % The shape functions phi and the gradients dphi at quadrature
+            % points and weights w of the quadrature rule are expected as
+            % returned by ofem.finiteelement.phi and ofem.finiteelement.dphi.
+            % The quadrature points can be queried from, e.g.,
+            % ofem.quassianquadrature.data.
+            %
+            % See also ofem.mesh.jacobian_data, ofem.finiteelement.phi,
+            % ofem.finiteelement.dphi, ofem.quassianquadrature.data
+            
+            
+
             Ns = size(dphi,1);
             Nd = size(dphi,2);
             Nq = size(dphi,3);
             Ne = size(el,1);
             Nc = size(co,3);
+            
+            D= ofem.matrixarray(zeros(Ns*Nd, Ns*Nd, Ne));
+            if isa(b,'function_handle')
+                Nl   = size(l  ,2); % number of barycentric coordinates
+                elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+                
+                for q=1:Nq
+                    X = elco*(l(q,:)');
+                    ph=repelem(phi(:,q),1,Nd);
+                    globdphi = DinvT*dphi(:,:,q)';
+                    bb=b(X);
+                    for j=1:Nd
+                        D(j:Nd:Nd*Ns,j:Nd:Nd*Ns, : )=D(j:Nd:Nd*Ns,j:Nd:Nd*Ns, :)+ph(:,j)*((w(q)*bb(j,:,:))'*globdphi(j,:,:));
+                    end
+                    
+                    %  D=D+phi(:,q)*((w(q)*b(X))'*(DinvT*dphi(:,:,q)'));
+                end
+            else
+                for q=1:Nq
+                    ph=repelem(phi(:,q),1,Nd);
+                    globdphi = DinvT*dphi(:,:,q)';
+                    for j=1:Nd
+                        D(j:Nd:Nd*Ns,j:Nd:Nd*Ns, : )=D(j:Nd:Nd*Ns,j:Nd:Nd*Ns, :)+ph(:,j)*((w(q)*b(j))'*globdphi(j,:,:));
+                    end
+                end
+            end
+            
+            D = D*detD;
+            I = repmat(1:Ns,Nd*Nd*Ns,1    ); I=I(:);
+            J = repmat(1:Ns,Nd      ,Nd*Ns); J=J(:);
+            
+            I = Nd*el(:,I)-repmat(kron((Nd-1):-1:0,ones(1,Nd*Ns)),Ne,Ns); I=I';
+            J = Nd*el(:,J)-repmat(kron(ones(1,Nd*Ns),(Nd-1):-1:0),Ne,Ns); J=J';
+            D = sparse(J(:),I(:),D(:),Nd*Nc,Nd*Nc);
+            
+            
         end
         
+        
+
         %%
         function M=mass(c, detD,pipj,el,co)
             %MASS returns the mass matrix.
@@ -57,6 +157,8 @@ classdef elastic < handle
             I = Nd*el(:,I)-repmat(kron((Nd-1):-1:0,ones(1,Nd*Ns)),Ne,Ns); I=I';
             J = Nd*el(:,J)-repmat(kron(ones(1,Nd*Ns),(Nd-1):-1:0),Ne,Ns); J=J';
             
+            
+            
             M=sparse(I(:),J(:),M(:),Nd*Nc,Nd*Nc);
         end
         
@@ -81,10 +183,10 @@ classdef elastic < handle
             Nq = size(dphi,3);
             Ne = size(el,1);
             Nc = size(co,3);
-
-%             I = repmat(1:Nd*Ns,Nd*Ns,1); I=I(:);
-%             J = repmat(1:Nd*Ns,1,Nd*Ns); J=J(:);
-
+            
+            %             I = repmat(1:Nd*Ns,Nd*Ns,1); I=I(:);
+            %             J = repmat(1:Nd*Ns,1,Nd*Ns); J=J(:);
+            
             % lambda = (nu*E)/((1+nu)*(1-2*nu)); %for plane strain
             % lambda = (nu*E)/((1+nu)^2);        %for plane stress
             % mu     = E/(2*(1+nu))
@@ -98,9 +200,6 @@ classdef elastic < handle
             %             mu=1; lambda=1;
             %             lambda = 1.1538e+11; mu = 7.6923e+10;
             
-            if ~isscalar(lambda) || ~isscalar(mu)
-                
-            end
             
             s1 = sqrt(  lambda+2*mu);
             s2 = sqrt(  lambda+  mu);
@@ -246,13 +345,16 @@ classdef elastic < handle
     methods
         %%
         function obj=elastic(mesh,fe, qr)
-%             obj@ofem.laplace(mesh,fe);
+            %             obj@ofem.laplace(mesh,fe);
             obj.mesh  = mesh;
             obj.fe = fe;
             obj.qr = qr;
         end
         
         function setmaterial(obj,lambda,mu)
+            %SETMATERIAL sets Lame's lambda and mu. both of wich can be
+            %different for each part
+            % TO DO: make them both to cell vectors?
             obj.lambda=lambda;
             obj.mu=mu;
         end
@@ -305,12 +407,22 @@ classdef elastic < handle
                     opt.S = 0;
                 else
                     % stiffness matrix requested, check for material
-                    if isfield(opt, 'A')
-                        %if isempty(opt.A)
-                        % set to default
-                    else
-                    end
                     aux.S = cell(Np,1);
+                    if ~isprop(obj,'lambda') && ~isprop(obj, 'mu')
+                        obj.setmaterial(115.3846,76.9231);
+                        obj.lambda = 115.3846*ones(1,Np);
+                        obj.mu      = 76.9231*ones(1,Np);
+                        warning('ofem:elastic:NoMaterialParameters',...
+                            'No Lame constants were given I took those for standard steel in GPa:\n lambda= 115.3846 GPa \n mu=76.9231 GPa')
+                    elseif ~isprop(obj,'lambda')
+                        obj.lambda = 115.3846*ones(1,Np);
+                        warning('ofem:elastic:NoMaterialParameters',...
+                            'No Lame \lambda was given I took the one for standard steel in GPa:\n lambda= 115.3846 GPa \n')
+                    elseif ~isprop(obj,'mu')
+                        obj.mu      = 76.9231*ones(1,Np);
+                        warning('ofem:elastic:NoMaterialParameters',...
+                            'No Lame \mu were given I took the one for standard steel in GPa:\n  mu=76.9231 GPa')
+                    end
                 end
                 
                 %% damping
@@ -318,6 +430,9 @@ classdef elastic < handle
                     opt.D=0;
                 else
                     aux.D = cell(Np,1);
+                    if ~isfield(opt,'b')
+                        opt.b=ones(3,1);
+                    end
                 end
                 
                 %% mass
@@ -337,7 +452,15 @@ classdef elastic < handle
                     aux.force = cell(Np,1);
                 end
                 
-               %% Neumann boundary, pressure
+                %% hydrostatic pressure
+                if ~isfield(opt, 'hydro')
+                    opt.hydro=[];
+                else
+                    aux.hydropress =cell(Np,1);
+                end
+                
+                
+                %% Neumann boundary, pressure
                 if ~isfield(opt,'neumann')
                     opt.neumann={};
                     Nneu=0;
@@ -346,7 +469,7 @@ classdef elastic < handle
                         for k=1:numel(opt.neumann)
                             if ~all(isfield(opt.neumann{k},{'f','idx'}))
                                 error('ofem:elliptic:InvalidArgument',...
-                                      'Each cell entry in opt.neumann must be a struct containing a ''f'' and a ''idx'' field.');
+                                    'Each cell entry in opt.neumann must be a struct containing a ''f'' and a ''idx'' field.');
                             end
                             if isnumeric(opt.neumann{k}.f) && isscalar(opt.neumann{k}.f)
                                 val = opt.neumann{k}.f;
@@ -354,7 +477,7 @@ classdef elastic < handle
                             elseif isa(opt.neumann{k}.f,'function_handle')
                             else
                                 error('ofem:elliptic:InvalidArgument',...
-                                      'The ''f'' entry in opt.neumann must either be a scalar or a function handle.');
+                                    'The ''f'' entry in opt.neumann must either be a scalar or a function handle.');
                             end
                         end
                     elseif isstruct(opt.neumann) && all(isfield(opt.neumann,{'f','idx'}))
@@ -363,7 +486,7 @@ classdef elastic < handle
                         
                         if ~isvector(neumann_idx)
                             error('ofem:elliptic:InvalidArgument',...
-                                  'The ''idx'' entry in opt.neumann must be a vector.');
+                                'The ''idx'' entry in opt.neumann must be a vector.');
                         end
                         
                         if isnumeric(neumann_f) && isscalar(neumann_f)
@@ -372,7 +495,7 @@ classdef elastic < handle
                         elseif isa(neumann_f,'function_handle')
                         else
                             error('ofem:elliptic:InvalidArgument',...
-                                  'The ''f'' entry in opt.neumann must either be a scalar or a function handle.');
+                                'The ''f'' entry in opt.neumann must either be a scalar or a function handle.');
                         end
                         
                         opt.neumann = cell(numel(neumann_idx),1);
@@ -382,9 +505,9 @@ classdef elastic < handle
                         end
                     else
                         error('ofem:elliptic:InvalidArgument',...
-                              'opt.neumann must either be a cell array or a structure containing a ''f'' and a ''idx'' field.');
+                            'opt.neumann must either be a cell array or a structure containing a ''f'' and a ''idx'' field.');
                     end
-
+                    
                     Nneu        = numel(opt.neumann);
                     aux.neumann = cell(Nneu,1);
                 end
@@ -515,9 +638,6 @@ classdef elastic < handle
             D  = sparse(Nc*Nd, Nc*Nd);
             b  = sparse(Nc*Nd,1);
             
-            opt.A=1;
-            opt.b=ones(3,1);
-            %opt.c=1;
             
             tic;
             %             [DinvT,detD] = obj.mesh.jacobiandata;
@@ -527,7 +647,7 @@ classdef elastic < handle
             if intvol==1
                 % volume quad data
                 [w,l] = obj.qr.data(0);
-
+                
                 % shape functions related stuff
                 pipj  = obj.fe.phiiphij(obj.mesh.dim);
                 phi   = obj.fe.phi(l);
@@ -549,21 +669,43 @@ classdef elastic < handle
                     end
                     %% handle damping matrix
                     if opt.D==1
-                        aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,elemsLoc,obj.mesh.co);
+                        if iscell(opt.b)
+                            aux.D{i} = obj.damping(opt.b{i},DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
+                        else
+                            aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
+                        end
                         D = D + aux.D{i};
                     end
                     %% handle mass matrix
                     if opt.M==1
-                        aux.M{i} = obj.mass(opt.c(:,i,pIdx),detDLoc,pipj,elemsLoc,obj.mesh.co);
+                        if iscell(opt.c)
+                            %aux.M{i} = obj.mass(opt.c,detDLoc,phi,w,l,elemsLoc,obj.mesh.co);
+                            aux.M{i} = obj.mass(opt.c{i},detDLoc,pipj,elemsLoc,obj.mesh.co);
+                        else
+                            aux.M{i} = obj.mass(opt.c,detDLoc,pipj,elemsLoc,obj.mesh.co);
+                        end
                         M = M + aux.M{i};
                     end
-                end
-                %% handle volume force matrix
-                if isempty(opt.force)==0
-                    aux.force = obj.load(detD,phi,w,l,opt.force{1},obj.mesh.el,obj.mesh.co);
-                    b = aux.force;
+                    
+                    %% handle volume force matrix
+                    if ~isempty(opt.force)
+                        if iscell(opt.force)
+                            aux.force{i} = obj.load(detDLoc,phi,w,l,opt.force{i},elemsLoc,obj.mesh.co);
+                        else
+                            aux.force{i} = obj.load(detDLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co);
+                        end
+                        b = b+ aux.force{i};
+                    end
+                    
+                    %% handle hydrostatic pressure
+                    
+                    if ~isempty(opt.hydro)
+                        aux.hydropress{i} = obj.hydrostatic_component(opt.press{i},DinvTLoc,detDLoc,dphi,w,elemsLoc,obj.mesh.co);
+                        b = b + aux.hydropress{i};
+                    end
                 end
             end
+            
             
             %% surface related integration
             if intface==1
@@ -602,7 +744,7 @@ classdef elastic < handle
             if opt.M
                 asm.M=M;
             end
-            if isempty(opt.force)==0 || isempty(opt.neumann)==0 || isempty(opt.dirichlet)==0
+            if isempty(opt.force)==0 || isempty(opt.neumann)==0 || isempty(opt.dirichlet)==0 || isempty(opt.hydro) ==0
                 asm.b=b;
             end
             
@@ -712,6 +854,110 @@ classdef elastic < handle
                         'Reconstruction of P2 gradient not implemented, yet!');
             end
         end
+        
+        function grad=graduAtX(obj,u,X)
+            %GRADUATX computes the gradient at the point given
+            %by the matrixarray X.
+            %
+            % grad=graduAtX(u) computes the gradient grad of the FEM solution u at
+            % DOFs. grad is a Ndofs by Nd matrix, where Ndofs are the number of
+            % nodes and Nd the dimension of the spatial space.
+            %
+            
+            switch obj.fe
+                case ofem.finiteelement.P1
+                    
+                    switch obj.mesh.dim
+                        case 2
+                            % d denotes the dimension of polynomial space,
+                            % i.e. for P1 elements it is 1
+                            d=1;             % degree of finite element space
+                            m=(d+2)*(d+3)/2; % polynomial degree of approximant
+                            n=(d+3)*(d+4)/2; % degree of point considering for least-squares
+                            
+                            % statistics and machine learning toolbox
+                            co_idx = knnsearch(squeeze(X)',squeeze(X)','K',n)';
+                            
+                            ui = u          (co_idx(:)  );
+                            xi = squeeze(X(1, :, co_idx(:)));
+                            yi = squeeze(X(2, :, co_idx(:)));
+                            
+                            clear co_idx;
+                            
+                            Ndof = size(X,3);
+                            
+                            A = [ones(Ndof*n,1), xi, yi, xi.*yi, xi.^2, yi.^2];
+                            
+                            ui_rec = cellfun(@(A,b) A\b      , ...
+                                mat2cell(A ,n*ones(1,Ndof),m), ...
+                                mat2cell(ui,n*ones(1,Ndof),1), ...
+                                'UniformOutput',false);
+                            ui_rec = reshape(cell2mat(ui_rec),m,[])';
+                            
+                            clear A;
+                            x = squeeze(X(1, :,:));
+                            y = squeeze(X(2,:, :));
+                            
+                            grad = [ ui_rec(:,2)+ui_rec(:,4).*y+2*ui_rec(:,5).*x, ...
+                                ui_rec(:,3)+ui_rec(:,4).*x+2*ui_rec(:,6).*y ];
+                            
+                        case 3
+                            % d denotes the dimension of polynomial space,
+                            % i.e. for P1 elements it is 1
+                            %d=1;             % degree of finite element space
+                            %m=(d+2)*(d+3)/2; % polynomial degree of approximant
+                            m = 10;
+                            % n=(d+3)*(d+4)/2; % degree of point considering for least-squares
+                            n = 3*m;
+                            
+                            % statistics and machine learning toolbox
+                            co_idx = knnsearch(squeeze(X)',squeeze(X)','K',n)';
+                            
+                            %                 ui = u (co_idx(:)  );
+                            %                 xi = co(co_idx(:),1);
+                            %                 yi = co(co_idx(:),2);
+                            %                 zi = co(co_idx(:),3);
+                            
+                            
+                            
+                            
+                            ui = u          (co_idx(:)  );
+                            xi = squeeze(X(1, :, co_idx(:)));
+                            yi = squeeze(X(2, :, co_idx(:)));
+                            zi = squeeze(X(3, :, co_idx(:)));
+                            
+                            
+                            clear co_idx;
+                            
+                            Ndof = size(X,3);
+                            
+                            A = [ones(Ndof*n,1), xi, yi, zi, xi.*yi ,xi.*zi, yi.*zi, xi.^2, yi.^2, zi.^2];
+                            
+                            ui_rec = cellfun(@(A,b) A\b      , ...
+                                mat2cell(A ,n*ones(1,Ndof),m), ...
+                                mat2cell(ui,n*ones(1,Ndof),1), ...
+                                'UniformOutput',false);
+                            ui_rec = reshape(cell2mat(ui_rec),m,[])';
+                            
+                            clear A;
+                            
+                            x = squeeze(X(1, :,:));
+                            y = squeeze(X(2,:, :));
+                            z = squeeze(X(3, :,:));
+                            
+                            grad = [ ui_rec(:,2)+ui_rec(:,5).*y+ui_rec(:,6).*z+2*ui_rec(:,8).*x, ...
+                                ui_rec(:,3)+ui_rec(:,5).*x+ui_rec(:,7).*z+2*ui_rec(:,9).*y,...
+                                ui_rec(:,4)+ui_rec(:,6).*x+ui_rec(:,7).*y+2*ui_rec(:,10).*z];
+                            
+                            
+                            % warning('3D gradient recovery not implemented yet!');
+                    end
+                otherwise
+                    error('MATLAB:ofem:laplace:gradu:NotSupported',...
+                        'Reconstruction of P2 gradient not implemented, yet!');
+            end
+        end
+        
         
         %% Deformation Gradient, Strains and Stresses
         function F=defGrad(obj,u)
