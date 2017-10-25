@@ -888,7 +888,7 @@ classdef elliptic < handle
                         
                         
                         
-                        ui = u          (co_idx(:)  );
+                        ui = u(co_idx(:));
                         xi = squeeze(obj.mesh.co(1, :, co_idx(:)));
                         yi = squeeze(obj.mesh.co(2, :, co_idx(:)));
                         zi = squeeze(obj.mesh.co(3, :, co_idx(:)));
@@ -919,6 +919,67 @@ classdef elliptic < handle
                         
                         
                         % warning('3D gradient recovery not implemented yet!');
+                end
+            otherwise
+                error('ofem:elliptic:NotSupported',...
+                      'Reconstruction of P2 gradient not implemented, yet!');
+        end
+        end
+        
+        function gradi = gradq (obj, u, xq)
+        %GRADQ computes the gradient at a query point.
+        %
+        % grad=gradq(u, xq) computes the gradient grad of the FEM solution u at
+        % a query point xq. gradi is a Nxq by Nd matrix, where Nxq is the number of
+        % query points and Nd the dimension of the spatial space.
+            
+
+        switch obj.fe
+            case ofem.finiteelement.P1
+                
+                switch obj.mesh.dim
+                    case 2
+                        warning('2D query point gradient recovery not implemented yet!');
+                        
+                    case 3
+                        % d denotes the dimension of polynomial space,
+                        % i.e. for P1 elements it is 1
+                        %d=1;             % degree of finite element space
+                        %m=(d+2)*(d+3)/2; % polynomial degree of approximant
+                        m = 10;
+                        % n=(d+3)*(d+4)/2; % degree of point considering for least-squares
+                        n = 3*m;
+                        
+                          
+
+                        co_idx = knnsearch(squeeze(obj.mesh.co)',xq,'K',n)';
+
+                        ui = u(co_idx(:));
+                        xi = squeeze(obj.mesh.co(1, :, co_idx(:)));
+                        yi = squeeze(obj.mesh.co(2, :, co_idx(:)));
+                        zi = squeeze(obj.mesh.co(3, :, co_idx(:)));
+
+                        clear co_idx;
+
+                        Ndof = size(xq,1);
+
+                        A = [ones(Ndof*n,1), xi, yi, zi, xi.*yi ,xi.*zi, yi.*zi, xi.^2, yi.^2, zi.^2];
+
+                        ui_r = cellfun(@(A,b) A\b      , ...
+                            mat2cell(A ,n*ones(1,Ndof),m), ...
+                            mat2cell(ui,n*ones(1,Ndof),1), ...
+                            'UniformOutput',false);
+                        ui_r = reshape(cell2mat(ui_r),m,[])';
+
+                        clear A;
+
+                        x = xq(:,1);
+                        y = xq(:,1);
+                        z = xq(:,1);
+
+                        gradi= [ ui_r(:,2)+ui_r(:,5).*y+ui_r(:,6).*z+2*ui_r(:, 8).*x, ...
+                                 ui_r(:,3)+ui_r(:,5).*x+ui_r(:,7).*z+2*ui_r(:, 9).*y,...
+                                 ui_r(:,4)+ui_r(:,6).*x+ui_r(:,7).*y+2*ui_r(:,10).*z];
                 end
             otherwise
                 error('ofem:elliptic:NotSupported',...
