@@ -21,8 +21,8 @@ delete vol 2
 
 ########################## imprint #############################################################
 
-imprint vol all
-merge vol all
+imprint  all
+merge  all
 
 ########################## groups #############################################################
 
@@ -63,7 +63,8 @@ mesh vol all
 renumber element all start_id 1 uniqueids
 
 ## export
-export abaqus "/Users/dmichal/Documents/tet/lehre/2015/HT/MANF/uebung/uebung4/meshes/chargedSphere.inp" dimension 3 everything overwrite #cubitids
+export abaqus "/Users/hagel/Documents/GitHub/oFEM/examples/chargedSphere/chargedSphere.inp" dimension 3 everything overwrite #cubitids
+
 
 
 
