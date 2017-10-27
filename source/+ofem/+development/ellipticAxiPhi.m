@@ -1,6 +1,6 @@
 
 
-classdef elliptic < handle
+classdef ellipticAxiPhi < handle
     % ofem.elliptic defines a general scalar elliptic partial differential
     % equation, i.e., a PDE of the following type:
     %
@@ -26,7 +26,7 @@ classdef elliptic < handle
     methods(Access=protected,Static)
 
         %%
-        function S=stiffness(A,DinvT,detD,dphi,w,l,el,co)
+        function S=stiffness(A,DinvT,detD,dphi,pipj,phi, w,l,el,co)
         %stiffness returns the stiffness matrix.
         %
         % S=stiffness(DinvT,detD,dphi,w,el,co) returns the stiffness matrix
@@ -53,20 +53,24 @@ classdef elliptic < handle
             Nc = size(co  ,3);
 
             S=ofem.matrixarray(zeros(Ns,Ns,Ne));
+            Nl   = size(l  ,2); % number of barycentric coordinates
+            elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
 
             if isa(A,'function_handle')
-                Nl   = size(l  ,2); % number of barycentric coordinates
-                elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+
 
                 for q=1:Nq
                     X = elco*(l(q,:)');
                     globdphi = DinvT*dphi(:,:,q)';
                     S=S+globdphi'*(w(q)*A(X))*globdphi;
+                    S=S*X(1,:,:);
                 end
             else
                 for q=1:Nq
+                    X = elco*(l(q,:)');
                     globdphi = DinvT*dphi(:,:,q)';
-                    S=S+globdphi'*(w(q)*A)*globdphi;
+                    S=S+globdphi'*(w(q)*A)*globdphi;                    
+                    S=S*X(1,:,:);
                 end
             end
 
@@ -79,6 +83,19 @@ classdef elliptic < handle
             J = el(:,J )';
 
             S = sparse(I(:),J(:),S(:),Nc,Nc);
+            
+            %Ns = size(pipj,1);
+            %Nc = size(co  ,3);
+
+            M = (pipj)*(detD./X(1,:,:));
+
+            J = repmat(1:Ns,Ns,1);
+            I = el(:,J')';
+            J = el(:,J )';
+
+            M=sparse(I(:),J(:),M(:),Nc,Nc);
+            
+            S= S+M;
         end
 
 
@@ -139,7 +156,7 @@ classdef elliptic < handle
 
 
         %%
-        function M=mass(c,detD,pipj,el,co)
+        function M=mass(c,detD,pipj,l,el,co)
         %MASS returns the mass matrix.
         %
         % M=mass(detD,pipj,el,co) returns the mass matrix for the local set
@@ -190,10 +207,18 @@ classdef elliptic < handle
 %             M = sparse(I(:),J(:),M(:),Nc,Nc);
 
 
+
+
             Ns = size(pipj,1);
             Nc = size(co  ,3);
+            Ne = size(el  ,1);
+            
+            Nl   = size(l  ,2); % number of barycentric coordinates
+            elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+            
+            X = elco*(l(1,:)');
 
-            M = (c*pipj)*detD;
+            M = (c*pipj)*detD*X(1,:,:);
 
             J = repmat(1:Ns,Ns,1);
             I = el(:,J')';
@@ -236,7 +261,7 @@ classdef elliptic < handle
 
 %             F = permute(double(F*detD),[3,2,1]);
 
-            F  = F*detD;
+            F  = F*detD*X(1,:,:);
             el = el';
             b  = sparse(el(:),1,F(:),Nc,1);
         end
@@ -296,7 +321,7 @@ classdef elliptic < handle
 
     methods
         %%
-        function obj=elliptic(mesh,fe,qr)
+        function obj=ellipticAxiPhi(mesh,fe,qr)
         %elliptic construct the object
         %
         % elliptic(mesh,fe,qr) construct the object from a ofem.mesh mesh,
@@ -681,9 +706,9 @@ classdef elliptic < handle
                     %% handle stiffness matrix
                     if opt.S==1
                         if iscell(opt.A)
-                            aux.S{i} = obj.stiffness(opt.A{i},DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.co);
+                            aux.S{i} = obj.stiffness(opt.A{i},DinvTLoc,detDLoc,dphi,pipj,phi, w,l,elemsLoc,obj.mesh.co);
                         else
-                            aux.S{i} = obj.stiffness(opt.A,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.co);
+                            aux.S{i} = obj.stiffness(opt.A,DinvTLoc,detDLoc,dphi,pipj,phi,w,l,elemsLoc,obj.mesh.co);
                         end
                         S = S + aux.S{i};
                     end
@@ -700,9 +725,9 @@ classdef elliptic < handle
                     if opt.M==1
                         if iscell(opt.c)
 %                         aux.M{i} = obj.mass(opt.c,detDLoc,phi,w,l,elemsLoc,obj.mesh.co);
-                            aux.M{i} = obj.mass(opt.c{i},detDLoc,pipj,elemsLoc,obj.mesh.co);
+                            aux.M{i} = obj.mass(opt.c{i},detDLoc,pipj,l,elemsLoc,obj.mesh.co);
                         else
-                            aux.M{i} = obj.mass(opt.c,detDLoc,pipj,elemsLoc,obj.mesh.co);
+                            aux.M{i} = obj.mass(opt.c,detDLoc,pipj,l,elemsLoc,obj.mesh.co);
                         end
                         M = M + aux.M{i};
                     end
@@ -891,7 +916,7 @@ classdef elliptic < handle
                         
                         
                         
-                        ui = u(co_idx(:));
+                        ui = u          (co_idx(:)  );
                         xi = squeeze(obj.mesh.co(1, :, co_idx(:)));
                         yi = squeeze(obj.mesh.co(2, :, co_idx(:)));
                         zi = squeeze(obj.mesh.co(3, :, co_idx(:)));
@@ -922,67 +947,6 @@ classdef elliptic < handle
                         
                         
                         % warning('3D gradient recovery not implemented yet!');
-                end
-            otherwise
-                error('ofem:elliptic:NotSupported',...
-                      'Reconstruction of P2 gradient not implemented, yet!');
-        end
-        end
-        
-        function gradi = gradq (obj, u, xq)
-        %GRADQ computes the gradient at a query point.
-        %
-        % grad=gradq(u, xq) computes the gradient grad of the FEM solution u at
-        % a query point xq. gradi is a Nxq by Nd matrix, where Nxq is the number of
-        % query points and Nd the dimension of the spatial space.
-            
-
-        switch obj.fe
-            case ofem.finiteelement.P1
-                
-                switch obj.mesh.dim
-                    case 2
-                        warning('2D query point gradient recovery not implemented yet!');
-                        
-                    case 3
-                        % d denotes the dimension of polynomial space,
-                        % i.e. for P1 elements it is 1
-                        %d=1;             % degree of finite element space
-                        %m=(d+2)*(d+3)/2; % polynomial degree of approximant
-                        m = 10;
-                        % n=(d+3)*(d+4)/2; % degree of point considering for least-squares
-                        n = 3*m;
-                        
-                          
-
-                        co_idx = knnsearch(squeeze(obj.mesh.co)',xq,'K',n)';
-
-                        ui = u(co_idx(:));
-                        xi = squeeze(obj.mesh.co(1, :, co_idx(:)));
-                        yi = squeeze(obj.mesh.co(2, :, co_idx(:)));
-                        zi = squeeze(obj.mesh.co(3, :, co_idx(:)));
-
-                        clear co_idx;
-
-                        Ndof = size(xq,1);
-
-                        A = [ones(Ndof*n,1), xi, yi, zi, xi.*yi ,xi.*zi, yi.*zi, xi.^2, yi.^2, zi.^2];
-
-                        ui_r = cellfun(@(A,b) A\b      , ...
-                            mat2cell(A ,n*ones(1,Ndof),m), ...
-                            mat2cell(ui,n*ones(1,Ndof),1), ...
-                            'UniformOutput',false);
-                        ui_r = reshape(cell2mat(ui_r),m,[])';
-
-                        clear A;
-
-                        x = xq(:,1);
-                        y = xq(:,1);
-                        z = xq(:,1);
-
-                        gradi= [ ui_r(:,2)+ui_r(:,5).*y+ui_r(:,6).*z+2*ui_r(:, 8).*x, ...
-                                 ui_r(:,3)+ui_r(:,5).*x+ui_r(:,7).*z+2*ui_r(:, 9).*y,...
-                                 ui_r(:,4)+ui_r(:,6).*x+ui_r(:,7).*y+2*ui_r(:,10).*z];
                 end
             otherwise
                 error('ofem:elliptic:NotSupported',...
