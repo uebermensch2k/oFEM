@@ -1,6 +1,6 @@
 
 
-classdef elliptic < handle
+classdef ellipticAxiPhi < handle
     % ofem.elliptic defines a general scalar elliptic partial differential
     % equation, i.e., a PDE of the following type:
     %
@@ -26,7 +26,7 @@ classdef elliptic < handle
     methods(Access=protected,Static)
 
         %%
-        function S=stiffness(A,DinvT,detD,dphi,w,l,el,co)
+        function S=stiffness(A,DinvT,detD,dphi,pipj,phi, w,l,el,co)
         %stiffness returns the stiffness matrix.
         %
         % S=stiffness(DinvT,detD,dphi,w,el,co) returns the stiffness matrix
@@ -53,20 +53,24 @@ classdef elliptic < handle
             Nc = size(co  ,3);
 
             S=ofem.matrixarray(zeros(Ns,Ns,Ne));
+            Nl   = size(l  ,2); % number of barycentric coordinates
+            elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
 
             if isa(A,'function_handle')
-                Nl   = size(l  ,2); % number of barycentric coordinates
-                elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+
 
                 for q=1:Nq
                     X = elco*(l(q,:)');
                     globdphi = DinvT*dphi(:,:,q)';
                     S=S+globdphi'*(w(q)*A(X))*globdphi;
+                    S=S*X(1,:,:);
                 end
             else
                 for q=1:Nq
+                    X = elco*(l(q,:)');
                     globdphi = DinvT*dphi(:,:,q)';
-                    S=S+globdphi'*(w(q)*A)*globdphi;
+                    S=S+globdphi'*(w(q)*A)*globdphi;                    
+                    S=S*X(1,:,:);
                 end
             end
 
@@ -79,6 +83,19 @@ classdef elliptic < handle
             J = el(:,J )';
 
             S = sparse(I(:),J(:),S(:),Nc,Nc);
+            
+            %Ns = size(pipj,1);
+            %Nc = size(co  ,3);
+
+            M = (pipj)*(detD./X(1,:,:));
+
+            J = repmat(1:Ns,Ns,1);
+            I = el(:,J')';
+            J = el(:,J )';
+
+            M=sparse(I(:),J(:),M(:),Nc,Nc);
+            
+            S= S+M;
         end
 
 
@@ -139,7 +156,7 @@ classdef elliptic < handle
 
 
         %%
-        function M=mass(c,detD,pipj,el,co)
+        function M=mass(c,detD,pipj,l,el,co)
         %MASS returns the mass matrix.
         %
         % M=mass(detD,pipj,el,co) returns the mass matrix for the local set
@@ -190,10 +207,18 @@ classdef elliptic < handle
 %             M = sparse(I(:),J(:),M(:),Nc,Nc);
 
 
+
+
             Ns = size(pipj,1);
             Nc = size(co  ,3);
+            Ne = size(el  ,1);
+            
+            Nl   = size(l  ,2); % number of barycentric coordinates
+            elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+            
+            X = elco*(l(1,:)');
 
-            M = (c*pipj)*detD;
+            M = (c*pipj)*detD*X(1,:,:);
 
             J = repmat(1:Ns,Ns,1);
             I = el(:,J')';
@@ -236,7 +261,7 @@ classdef elliptic < handle
 
 %             F = permute(double(F*detD),[3,2,1]);
 
-            F  = F*detD;
+            F  = F*detD*X(1,:,:);
             el = el';
             b  = sparse(el(:),1,F(:),Nc,1);
         end
@@ -296,7 +321,7 @@ classdef elliptic < handle
 
     methods
         %%
-        function obj=elliptic(mesh,fe,qr)
+        function obj=ellipticAxiPhi(mesh,fe,qr)
         %elliptic construct the object
         %
         % elliptic(mesh,fe,qr) construct the object from a ofem.mesh mesh,
@@ -681,9 +706,9 @@ classdef elliptic < handle
                     %% handle stiffness matrix
                     if opt.S==1
                         if iscell(opt.A)
-                            aux.S{i} = obj.stiffness(opt.A{i},DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.co);
+                            aux.S{i} = obj.stiffness(opt.A{i},DinvTLoc,detDLoc,dphi,pipj,phi, w,l,elemsLoc,obj.mesh.co);
                         else
-                            aux.S{i} = obj.stiffness(opt.A,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.co);
+                            aux.S{i} = obj.stiffness(opt.A,DinvTLoc,detDLoc,dphi,pipj,phi,w,l,elemsLoc,obj.mesh.co);
                         end
                         S = S + aux.S{i};
                     end
@@ -700,9 +725,9 @@ classdef elliptic < handle
                     if opt.M==1
                         if iscell(opt.c)
 %                         aux.M{i} = obj.mass(opt.c,detDLoc,phi,w,l,elemsLoc,obj.mesh.co);
-                            aux.M{i} = obj.mass(opt.c{i},detDLoc,pipj,elemsLoc,obj.mesh.co);
+                            aux.M{i} = obj.mass(opt.c{i},detDLoc,pipj,l,elemsLoc,obj.mesh.co);
                         else
-                            aux.M{i} = obj.mass(opt.c,detDLoc,pipj,elemsLoc,obj.mesh.co);
+                            aux.M{i} = obj.mass(opt.c,detDLoc,pipj,l,elemsLoc,obj.mesh.co);
                         end
                         M = M + aux.M{i};
                     end
