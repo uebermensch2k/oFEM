@@ -20,6 +20,7 @@ s=trimesh(mesh.el,co(:,1),co(:,2),co(:,3),zeros(size(co,1),1));
 set(s,'FaceAlpha',0.1);
 
 %% define function space discretization
+
 fe=ofem.finiteelement.P1;
 
 %% define equation type in oFEM 
