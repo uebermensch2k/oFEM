@@ -1,0 +1,98 @@
+reset
+
+create surface rectangle width 1 zplane
+move Surface 1 location 0.5 0.5 0 include_merged 
+
+
+create surface rectangle width 0.05 height 0.2 zplane
+move Surface 2 location 0.125 0.4 0 include_merged
+
+create surface rectangle width 0.05 height 0.2 zplane
+move Surface 3 location 0.225 0.4 0 include_merged
+
+create surface rectangle width 0.05 height 0.2 zplane
+move Surface 4 location 0.325 0.4 0 include_merged
+
+create surface rectangle width 0.05 height 0.2 zplane
+move Surface 5 location 0.425 0.4 0 include_merged
+
+create surface rectangle width 0.5 height 0.05 zplane
+move Surface 6 location 0.25 0.55 0 include_merged
+
+subtract body 2 to 6 from body 1  imprint keep
+
+delete Body 1
+
+
+
+
+imprint all
+merge all
+
+
+
+
+surface 2 rename 'coil1'
+surface 3 rename 'coil2'
+surface 4 rename 'coil3'
+surface 5 rename 'coil4'
+surface 6 rename 'plate'
+surface 7 rename 'space'
+
+
+
+
+block 1 surface 2
+block 1 name 'coil1'
+
+block 2 surface 3
+block 2 name 'coil2'
+
+block 3 surface 4
+block 3 name 'coil3'
+
+block 4 surface 5
+block 4 name 'coil4'
+
+block 5 surface 6
+block 5 name 'plate'
+
+block 6 surface 7
+block 6 name 'space'
+
+Sideset 1 curve 5 to 8
+sideset 1 name 'coil1'
+
+Sideset 2 curve 9 to 12
+sideset 2 name 'coil2'
+
+Sideset 3 curve 13 to 16
+sideset 3 name 'coil3'
+
+Sideset 4 curve 17 to 20
+sideset 4 name 'coil4'
+
+Sideset 5 curve 21 to 24
+sideset 5 name 'plate'
+
+Sideset 6 curve 22 26 to 30
+sideset 6 name 'Dirichlet'
+
+
+
+
+surface all scheme TriMesh
+mesh surface all
+refine surface all numsplit 2 bias 1.0 depth 1 smooth
+
+renumber element all start_id 1 uniqueids
+
+
+export abaqus "/Users/marcorozgic/ownCloud/MANF/uebung/uebung10/meshes/coil_plate_new.inp" dimension 2 overwrite
+
+
+
+
+
+
+
