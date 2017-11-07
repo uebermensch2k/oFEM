@@ -210,8 +210,8 @@ function [intT,T,mesh] = heatRobin(xpts,tpts,f,T0,varargin)
     T_t    = deval(sol,tpts);
     clear sol DOFs;
 
-    TR     = triangulation(mesh.el,permute(double(mesh.co),[3,1,2]));
-    [i,l]  = mesh.pointLocation(TR,xpts);
+    %TR     = triangulation(mesh.el,permute(double(mesh.co),[3,1,2]));
+    [i,~, l]  = mesh.point_location(xpts);
     clear TR;
     T      = reshape(T_t(mesh.el(i,:),:),[],size(mesh.el,2),numel(tpts));
     T      = reshape(dot(T,repmat(fe.phi(l)',1,1,numel(tpts)),2),[],numel(tpts));
