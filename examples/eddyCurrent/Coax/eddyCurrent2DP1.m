@@ -38,7 +38,7 @@ fprintf('Assembling stiffness matrix (oFEM) ... \n');
 opt.S = 1;
 opt.A = 1/mu;
 opt.M = 1;
-opt.a = {0,ka_cu,ka_cu};
+opt.c = {0,ka_cu,ka_cu};
 opt.force = @(x) current(x);
 opt.dirichlet = struct('idx',1,'f',0);
 [asm,info,~]=eq.assemble(opt);
