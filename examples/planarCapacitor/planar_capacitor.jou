@@ -23,8 +23,8 @@ subtract body 2,3  from body 1  keep
 delete body 1
 
 ############################## merge imprint ############################################################
-imprint curve all
-merge curve all
+imprint  all
+merge  all
 
 ############################ rename #############################################################
 surf 2 rename "kondensator_li"
@@ -65,10 +65,11 @@ renumber element all start_id 1 uniqueids
 
 ############################# save ###########################################################
 #
-export abaqus "/Users/marcorozgic/Documents/HSU/oFEM/examples/planarCapacitor/planar_capacitor.inp" everything dimension 2 overwrite #cubitids
+export abaqus "/Users/hagel/Documents/GitHub//oFEM/examples/planarCapacitor/planar_capacitor.inp" everything dimension 2 overwrite #cubitids
 #
 #
 #
+
 
 
 
