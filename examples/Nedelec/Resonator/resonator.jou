@@ -1,0 +1,16 @@
+reset
+
+brick x 1 y 1 z 2
+
+block 1 vol 1
+block 1 name 'dielectric'
+
+sideset 1 surf 1 to 6
+sideset 1 name 'PEC'
+
+vol all scheme tetmesh
+vol all size 1e-1
+
+mesh vol all
+
+export abaqus "/Users/hagel/documents/github/ofem/examples/nedelec/resonator/resonator.inp" dimension 3 overwrite

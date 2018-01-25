@@ -48,8 +48,18 @@ classdef gaussianquadrature
                           'Quassian quadrature for Q2 elements not implemented yet!');
                     
                 case ofem.finiteelement.NE0P
-                    error('ofem:gaussianquadrature:quaddata:NotImplemented',...
-                          'Quassian quadrature for NE0P elements not implemented yet!');
+                    switch dim
+                        case 2
+                            w=1/factorial(dim);
+                            l=repmat(1/(dim+1),1,dim+1);
+                            coord = [0 1 0; 0 0 1];
+                            l = coord*l';
+                        case 3
+                            w=1/factorial(dim);
+                            l=repmat(1/(dim+1),1,dim+1);
+                            coord = [0 1 0 0; 0 0 1 0; 0 0 0 1];
+                            l = coord*l';
+                    end
 
                 case ofem.finiteelement.NE1P
                     error('ofem:gaussianquadrature:quaddata:NotImplemented',...

@@ -31,7 +31,7 @@ classdef mesh < handle
         el;
 
         % el2ed is a matrix with size(el2ed,2) dependent on the type of
-        % element. E.g., for tetrahedra meshes size(el2ed,2)=4. It contains
+        % element. E.g., for tetrahedra meshes size(el2ed,2)=6. It contains
         % the element to edge mapping. More precisely, per row the ids of
         % the edges the respective elements is build up from are present.
         el2ed;
@@ -878,6 +878,9 @@ classdef mesh < handle
                 case ofem.finiteelement.Q2
                     error('ofem:mesh:InvalidMesh',...
                           'Q2 elements not supported so far!');
+                      
+                case ofem.finiteelement.NE0P
+                    obj.create_edges();
 
                 otherwise
                     error('ofem:mesh:Unspecified',...
@@ -888,7 +891,7 @@ classdef mesh < handle
         end
 
         %%
-        function [DinvT,detD]=jacobiandata(obj)
+        function [DinvT,detD,Dk]=jacobiandata(obj)
         %JACOBIANDATA returns the Jacobians and their determinants
         %
         % [DinvT,detD]=JACOBIANDATA, for a transformation
@@ -927,6 +930,8 @@ classdef mesh < handle
                     e12 = obj.co(:,1,obj.el(:,2))-obj.co(:,1,obj.el(:,1));
                     e13 = obj.co(:,1,obj.el(:,3))-obj.co(:,1,obj.el(:,1));
                     e14 = obj.co(:,1,obj.el(:,4))-obj.co(:,1,obj.el(:,1));
+                    
+                    Dk = [e12,e13,e14];
                     
                     detD = dot(e12,cross(e13,e14,1),1);
 
@@ -1035,6 +1040,26 @@ classdef mesh < handle
                 otherwise
                     error('ofem:mesh:Unspecified',...
                           'Unspecified error found');
+            end
+        end
+        
+        %% Get dirichlet edges for edge based DOFs
+        function eID=dirichletEdges(obj,idx)
+            %DIRICHLETEDGES returns dirichlet edges for the specified sidesets
+            ss    = obj.bd(2,idx);
+            Nss   = size(ss,2);
+            eID   = cell(Nss,1);
+            switch obj.type
+                case 'tet'
+                    for i=1:Nss
+                        eID{i} = unique([obj.el2ed(ss{1,i}{2,1},[1,2,4]);...
+                                      obj.el2ed(ss{1,i}{2,2},[1,3,5]);...
+                                      obj.el2ed(ss{1,i}{2,3},[4,5,6]);...
+                                      obj.el2ed(ss{1,i}{2,4},[2,3,6])]);
+                    end
+                otherwise
+                    error('ofem:mesh:dirichletEdges',...
+                          'Only Tetrahedron implemented so far!')
             end
         end
 
@@ -1162,6 +1187,7 @@ classdef mesh < handle
                           'Unspecified error found');
             end
         end
+
         %% search querypoint in mesh
         function [idx, tr, bary] = point_location(obj, xq, varargin)
         %point_location returns the index of the element which contains the
