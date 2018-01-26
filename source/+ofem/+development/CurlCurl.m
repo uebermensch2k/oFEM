@@ -61,7 +61,7 @@ classdef CurlCurl < handle
 
             
 
-            S=A*S./detD;
+            S=w*A*S*1./detD;
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -182,10 +182,10 @@ classdef CurlCurl < handle
             Ns = size(phi,2);
             Nc = size(ed,1);
 
-            phii = DinvT*phi.*sign*w(1);
+            phii = DinvT*phi.*sign;
             phij = phii;
 
-            M = c*detD*phii'*phij;
+            M = w*c*detD*(phii'*phij);
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
