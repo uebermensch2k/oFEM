@@ -35,8 +35,10 @@ classdef CurlCurl < handle
         %
             Ns = size(dphi,2);
 %             Nq = size(w   ,1);
-%             Ne = size(el  ,1);
+            Ne = size(el  ,1);
             Nc = size(ed,1);
+            
+            S=ofem.matrixarray(zeros(Ns,Ns,Ne));
 
 %             S=ofem.matrixarray(zeros(Ns,Ns,Ne));
 
@@ -57,11 +59,11 @@ classdef CurlCurl < handle
 %             end
 
             dphii = Dk*dphi.*sign;
-            S = (dphii'*dphii);
+            S = S+(dphii'*dphii);
 
             
 
-            S=w*A*S*1./detD;
+            S=S+w*A*S*1./detD;
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -183,9 +185,8 @@ classdef CurlCurl < handle
             Nc = size(ed,1);
 
             phii = DinvT*phi.*sign;
-            phij = phii;
 
-            M = w*c*detD*(phii'*phij);
+            M = w*c*detD*(phii'*phii);
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -196,7 +197,7 @@ classdef CurlCurl < handle
 
 
         %%
-        function b=volume_force(detD,phi,w,l,f,el,co)
+        function b=volume_force(detD,phi,w,l,f,el,co,el2ed,Nc)
         %volume_force returns the volume force part of the load vector.
         %
         % b=volume_force(detD,phi,w,l,f,el,co) computes the force in
@@ -209,28 +210,31 @@ classdef CurlCurl < handle
         % See also ofem.mesh.jacobian_data, ofem.finiteelement.phi,
         % ofem.quassianquadrature.data
         %
-            Nl   = size(l  ,2); % number of barycentric coordinates
-            Nc   = size(co ,3);
+            l = [1/4,1/4,1/4,1/4]';
+            Nl   = size(l  ,1); % number of barycentric coordinates
             Nq   = size(w  ,1);
-            Ns   = size(phi,1);
             Ne   = size(el ,1);
-
+            
             % elco*l gives global quadrature points => eval there
             elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+            
 
-            F    = ofem.matrixarray(zeros(1,Ns,Ne));
+            F    = ofem.matrixarray(zeros(1,1,Ne));
 
             for q=1:Nq
-                X = elco*(l(q,:)');
-                
-                F = F + f(X)*(w(q)*phi(:,q)');
+                X = elco*l;
+                A = f(X);
+                if ~isempty(A)
+                    F = F + sum(A'*(w*phi),2);
+                end
             end
 
-%             F = permute(double(F*detD),[3,2,1]);
+            %F = permute(double(F*detD),[3,2,1]);
+            F = repmat(F,6,1,1);
 
             F  = F*detD;
-            el = el';
-            b  = sparse(el(:),1,F(:),Nc,1);
+            el2ed = el2ed';
+            b  = sparse(el2ed(:),1,F(:),Nc,1);
         end
 
 
@@ -673,13 +677,16 @@ classdef CurlCurl < handle
                     elemsLoc = obj.mesh.el(pIdx,:);
                     detDLoc  = detD(:,:,pIdx);
                     DinvTLoc = DinvT(:,:,pIdx);
+                    DkLoc    = Dk(:,:,pIdx);
+                    signLoc  = sign(:,:,pIdx);
+                    el2edLoc = obj.mesh.el2ed(pIdx,:);
                     
                     %% handle stiffness matrix
                     if opt.S==1
                         if iscell(opt.A)
-                            aux.S{i} = obj.stiffness(opt.A{i},sign,Dk,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.ed,obj.mesh.el2ed);
+                            aux.S{i} = obj.stiffness(opt.A{i},signLoc,DkLoc,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.ed,el2edLoc);
                         else
-                            aux.S{i} = obj.stiffness(opt.A,sign,Dk,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.ed,obj.mesh.el2ed);
+                            aux.S{i} = obj.stiffness(opt.A,signLoc,DkLoc,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.ed,el2edLoc);
                         end
                         S = S + aux.S{i};
                     end
@@ -696,18 +703,18 @@ classdef CurlCurl < handle
                     if opt.M==1
                         if iscell(opt.c)
 %                         aux.M{i} = obj.mass(opt.c,detDLoc,phi,w,l,elemsLoc,obj.mesh.co);
-                            aux.M{i} = obj.mass(opt.c{i},sign,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,obj.mesh.el2ed);
+                            aux.M{i} = obj.mass(opt.c{i},signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         else
-                            aux.M{i} = obj.mass(opt.c,sign,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,obj.mesh.el2ed);
+                            aux.M{i} = obj.mass(opt.c,signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         end
                         M = M + aux.M{i};
                     end
                     %% handle volume force matrix
                     if ~isempty(opt.force)
                         if iscell(opt.force)
-                            aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force{i},elemsLoc,obj.mesh.co);
+                            aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force{i},elemsLoc,obj.mesh.co,el2edLoc,Nc);
                         else
-                            aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co);
+                            aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co,el2edLoc,Nc);
                         end
                         b = b + aux.force{i};
                     end 
@@ -1028,6 +1035,20 @@ classdef CurlCurl < handle
                 legend(name);
                 colorbar;
         end
+        end
+                %% Reconstruct the solution at the nodes from nedelec computations
+        function uNode = edge2NodeData(obj,u)
+            Nc = size(obj.mesh.co,3);
+            [DinvT,detD,Dk] = obj.mesh.jacobiandata();
+            [w,l] = obj.qr.data(0);
+            N = obj.fe.phi(l);
+            
+            u = u(obj.mesh.el2ed);
+            u = reshape(u',6,1,[]);
+            u = ofem.matrixarray(u);
+            
+            u = DinvT*(N*u);
+            
         end
     end
 end
