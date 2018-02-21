@@ -279,9 +279,9 @@ classdef finiteelement
                             % phi5 = (0;-x3;x2)
                             % phi6 = (x3;0;-x1)
                             
-                            shape = [1-l(3)-l(2) l(2) l(3) -l(2) 0 -l(1);
-                                     l(1) 1-l(3)-l(1) l(3) l(1) -l(3) 0;
-                                     l(1) l(2) 1-l(2)-l(1) 0 l(2) -l(1)];
+                            shape = [1-l(3)-l(2)    l(2)        l(3)        -l(2) -l(3)    0   ;
+                                     l(1)       1-l(3)-l(1)     l(3)        l(1)     0  -l(3)  ;
+                                     l(1)           l(2)    1-l(2)-l(1)       0    l(1)   l(2) ];
                     end
                     
                 case ofem.finiteelement.NE1P
@@ -438,9 +438,9 @@ classdef finiteelement
                             dshape = [2 2 2];
                             dshape = reshape(dshape,3,1,1);
                         case 3
-                            dshape = [0 2 -2 0 0 2;
-                                      -2 0 2 0 -2 0;
-                                      2 -2 0 2 0 0];
+                            dshape = [0  2 -2  0  0  2;
+                                      -2 0  2  0  -2 0;
+                                      2 -2  0  2  0  0];
                             dshape = reshape(dshape,3,6,1);
                             
                     end

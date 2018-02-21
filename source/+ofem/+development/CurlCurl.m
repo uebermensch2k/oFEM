@@ -58,12 +58,12 @@ classdef CurlCurl < handle
 %                 end
 %             end
 
-            dphii = Dk*dphi.*sign;
+            dphii = Dk*(dphi.*sign);
             S = S+(dphii'*dphii);
 
             
 
-            S=S+w*A*S*1./detD;
+            S=w*A*S*(1./detD);
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -184,7 +184,7 @@ classdef CurlCurl < handle
             Ns = size(phi,2);
             Nc = size(ed,1);
 
-            phii = DinvT*phi.*sign;
+            phii = DinvT*(phi.*sign);
 
             M = w*c*detD*(phii'*phii);
 
@@ -197,7 +197,7 @@ classdef CurlCurl < handle
 
 
         %%
-        function b=volume_force(detD,phi,w,l,f,el,co,el2ed,Nc)
+        function b=volume_force(sign,detD,DinvT,phi,w,l,f,el,co,el2ed,Nc)
         %volume_force returns the volume force part of the load vector.
         %
         % b=volume_force(detD,phi,w,l,f,el,co) computes the force in
@@ -215,22 +215,23 @@ classdef CurlCurl < handle
             Nq   = size(w  ,1);
             Ne   = size(el ,1);
             
-            % elco*l gives global quadrature points => eval there
+            % eval at element centers
             elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
             
 
             F    = ofem.matrixarray(zeros(1,1,Ne));
 
+            % how to get the data from the element to the edges
             for q=1:Nq
                 X = elco*l;
                 A = f(X);
                 if ~isempty(A)
-                    F = F + sum(A'*(w*phi),2);
+                    F = F + (w*(DinvT*phi).*sign)'*A;
                 end
             end
 
             %F = permute(double(F*detD),[3,2,1]);
-            F = repmat(F,6,1,1);
+            %F = repmat(F,6,1,1);
 
             F  = F*detD;
             el2ed = el2ed';
@@ -666,6 +667,7 @@ classdef CurlCurl < handle
                 phi   = obj.fe.phi(l);
                 dphi  = obj.fe.dphi(l);
                 [DinvT,detD,Dk] = obj.mesh.jacobiandata;
+                detD = abs(detD);
                 aux.detD    =detD;
                 sign = reshape(obj.mesh.el2edsign',1,6,[]);
                 sign = repmat(sign,3,1,1);
@@ -712,9 +714,9 @@ classdef CurlCurl < handle
                     %% handle volume force matrix
                     if ~isempty(opt.force)
                         if iscell(opt.force)
-                            aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force{i},elemsLoc,obj.mesh.co,el2edLoc,Nc);
+                            aux.force{i} = obj.volume_force(signLoc,detDLoc,DinvTLoc,phi,w,l,opt.force{i},elemsLoc,obj.mesh.co,el2edLoc,Nc);
                         else
-                            aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co,el2edLoc,Nc);
+                            aux.force{i} = obj.volume_force(signLoc,detDLoc,DinvTLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co,el2edLoc,Nc);
                         end
                         b = b + aux.force{i};
                     end 
@@ -1038,18 +1040,98 @@ classdef CurlCurl < handle
         end
                 %% Reconstruct the solution at the nodes from nedelec computations
         function uNode = edge2NodeData(obj,u)
-            Nc = size(obj.mesh.co,3);
-            [DinvT,detD,Dk] = obj.mesh.jacobiandata();
             [w,l] = obj.qr.data(0);
-            N = obj.fe.phi(l);
-            
+            [DinvT,detD,Dk] = obj.mesh.jacobiandata();
+            detD = abs(detD);
+            phi = obj.fe.phi(l);
             u = u(obj.mesh.el2ed);
+            u = u.*double(obj.mesh.el2edsign);
             u = reshape(u',6,1,[]);
             u = ofem.matrixarray(u);
+            uElem = detD*(DinvT*phi*u);
+            tic
+            uElem = reshape(uElem(:),3,[]);
+            uElem = repelem(uElem,1,4);
+            detD = detD(:);
+            detD = repelem(detD,4,1);
+            i = obj.mesh.el;
+            i = i*3;
+            i = repelem(i,1,3);
+            vect = [-2,-1,0];
+            vect = repmat(vect,1,4);
+            i = i+vect;
+            i = i';
+            j = obj.mesh.el';
+            uNodes2 = sparse(i(:),1,uElem(:));
+            detDscale2 = sparse(j(:),1,detD);
+            uNodes2 = reshape(full(uNodes2),3,1,[]);
+            uNodes2 = ofem.matrixarray(uNodes2);
+            detDscale2 = reshape(full(detDscale2),1,1,[]);
+            detDscale2 = ofem.matrixarray(detDscale2);
+            uNode = uNodes2*(1./detDscale2);
             
-            u = DinvT*(N*u);
             
+            
+%             uelems = u(obj.mesh.el2ed);
+%             phir(:,:,1) = [1 0 0;
+%                           0 1 0;
+%                           0 0 1];
+%             phir(:,:,2) = [1 0 0;
+%                           1 1 0;
+%                           1 0 -1];
+%             phir(:,:,3) = [1 -1 0;
+%                           1 0 0;
+%                           1 0 1];
+%             phir(:,:,4) = [1 0 1;
+%                           1 -1 0;
+%                           1 0 0];
+%             uSel = [1 1 1 0 0 0;
+%                     1 0 0 1 0 1;
+%                     0 1 0 1 1 0;
+%                     0 0 1 0 1 1];
+%             uSel = logical(uSel);
+%             nodeIdx = [1,2,3,4];
+%             nodeIdx = repmat(nodeIdx,size(obj.mesh.el,1),1);
+%             uNode = zeros(3,1,size(obj.mesh.co,3));
+%             uNode = ofem.matrixarray(uNode);
+%             for i = 1:size(obj.mesh.co,3)
+%                 elidx = obj.mesh.el==i;
+%                 D = DinvT(:,:,logical(sum(elidx,2)));
+%                 nIdx = nodeIdx(elidx);
+%                 phiEl = phir(:,:,nIdx);
+%                 phiEl = ofem.matrixarray(phiEl);
+%                 uEl = uSel(nIdx,:);
+%                 uEdge = uelems(logical(sum(elidx,2)),:);
+%                 uEdge = uEdge(uEl);
+%                 uEdge = reshape(uEdge,[],3);
+%                 uEdge = reshape(uEdge',3,1,[]);
+%                 uEdge = ofem.matrixarray(uEdge);
+%                 sign = obj.mesh.el2edsign(logical(sum(elidx,2)),:);
+%                 sign = sign(uEl);
+%                 sign = reshape(sign,[],3);
+%                 sign = reshape(sign',3,1,[]);
+%                 sign = ofem.matrixarray(sign);
+%                 temp = (D*phiEl)*(uEdge.*sign);
+%                 uNode(:,:,i) = sum(sum(temp,2),3);
+                
+%             end
         end
     end
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
