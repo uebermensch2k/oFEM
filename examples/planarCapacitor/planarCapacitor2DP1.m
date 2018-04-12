@@ -4,7 +4,7 @@ inp_file_name='planar_capacitor';
 
 
 %% set constants
-U_1    = -1;
+U_1    = -10;
 U_2    =  1;
 
 eps1_r = 1; % Left

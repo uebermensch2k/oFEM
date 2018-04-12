@@ -222,12 +222,29 @@ classdef CurlCurl < handle
             F    = ofem.matrixarray(zeros(1,1,Ne));
 
             % how to get the data from the element to the edges
-            for q=1:Nq
-                X = elco*l;
-                A = f(X);
-                if ~isempty(A)
-                    F = F + (w*(DinvT*phi).*sign)'*A;
+            if(isa(f,'function_handle'))
+                for q=1:Nq
+                    X = elco*l;
+                    A = f(X);
+                    if ~isempty(A)
+                        F = F + (w*(DinvT*phi).*sign)'*A;
+                    end
                 end
+            else
+                el = repelem(el,1,3);
+                el = el*3;
+                vec = [-2,-1,0];
+                vec = repmat(vec,1,4);
+                el = el+vec;
+                f = reshape(f',[],1);
+                f = f(el);
+                Jx = f(:,[1,4,7,10])*l;
+                Jy = f(:,[2,5,8,11])*l;
+                Jz = f(:,[3,6,9,12])*l;
+                f = [Jx,Jy,Jz];
+                f = reshape(f',3,1,[]);
+                A = ofem.matrixarray(f);
+                F = F + (w*(DinvT*phi).*sign)'*A;
             end
 
             %F = permute(double(F*detD),[3,2,1]);
@@ -1049,7 +1066,6 @@ classdef CurlCurl < handle
             u = reshape(u',6,1,[]);
             u = ofem.matrixarray(u);
             uElem = detD*(DinvT*phi*u);
-            tic
             uElem = reshape(uElem(:),3,[]);
             uElem = repelem(uElem,1,4);
             detD = detD(:);
