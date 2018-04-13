@@ -88,7 +88,8 @@ refine surface all numsplit 2 bias 1.0 depth 1 smooth
 renumber element all start_id 1 uniqueids
 
 
-export abaqus "/Users/marcorozgic/ownCloud/MANF/uebung/uebung10/meshes/coil_plate_new.inp" dimension 2 overwrite
+export abaqus "C:\Users\Hagel\Documents\Projects\OFEM\oFEM\examples\eddyCurrent\CoilsAndPlate\coil_plate_new.inp" dimension 2 overwrite
+
 
 
 

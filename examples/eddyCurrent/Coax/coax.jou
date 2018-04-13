@@ -71,10 +71,11 @@ renumber element all start_id 1 uniqueids
 
 ################################### save ###########################################################
 #
-export abaqus "/Users/dudzinsm/Projects/oFEM/examples/eddyCurrent/coax.inp" everything dimension 2 overwrite #cubitids
+export abaqus "C:\Users\Hagel\Documents\Projects\OFEM\oFEM\examples\eddyCurrent\Coax\coax.inp" everything dimension 2 overwrite #cubitids
 #
 #
 #
+
 
 
 

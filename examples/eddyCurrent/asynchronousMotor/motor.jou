@@ -128,7 +128,8 @@ refine surface all numsplit 2 bias 1.0 depth 1 smooth
 renumber element all start_id 1 uniqueids
 
 ## export mesh
-export abaqus "/Users/dmichal/Documents/tet/lehre/2015/MANF/uebung/uebung10/meshes/motor.inp" dimension 2 overwrite 
+export abaqus "C:\Users\Hagel\Documents\Projects\OFEM\oFEM\examples\eddyCurrent\asynchronousMotor\motor.inp" dimension 2 overwrite 
+
 
 
 

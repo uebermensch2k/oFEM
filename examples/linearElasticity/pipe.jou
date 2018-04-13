@@ -16,7 +16,8 @@ mesh volume 1
 ################################## renumber elements ##################################
 renumber tet all start_id 1 uniqueids
 
-export abaqus "/Users/dmichal/Projects/oFEM/trunk/test_env/exer/linearElasticity/pipe.inp" dimension 3 everything overwrite
+export abaqus "C:\Users\Hagel\Documents\Projects\OFEM\oFEM\examples\linearElasticity\pipe.inp" dimension 3 everything overwrite
+
 
 
 

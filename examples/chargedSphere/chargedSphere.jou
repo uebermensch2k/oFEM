@@ -63,7 +63,8 @@ mesh vol all
 renumber element all start_id 1 uniqueids
 
 ## export
-export abaqus "/Users/hagel/Documents/GitHub/oFEM/examples/chargedSphere/chargedSphere.inp" dimension 3 everything overwrite #cubitids
+export abaqus "C:\Users\Hagel\Documents\Projects\OFEM\oFEM\examples\chargedSphere\chargedSphere.inp" dimension 3 everything overwrite #cubitids
+
 
 
 
