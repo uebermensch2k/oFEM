@@ -828,7 +828,7 @@ classdef mesh < handle
                                 case "2"
                                     tri(:,k) = temp;
                                     k = k+1;
-                                case "3"
+                                case "4"
                                     tet(:,l) = temp;
                                     l = l+1;
                             end
