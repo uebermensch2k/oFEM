@@ -17,10 +17,11 @@
 
 #include "msh_nodes_section.hpp"
 #include "msh_elements_section.hpp"
-#include "msh_nodesets_section.hpp"
-#include "msh_sidesets_section.hpp"
-#include "msh_properties_section.hpp"
-#include "msh_assembly_section.hpp"
+#include "msh_physical_section.hpp"
+//#include "msh_nodesets_section.hpp"
+//#include "msh_sidesets_section.hpp"
+//#include "msh_properties_section.hpp"
+//#include "msh_assembly_section.hpp"
 #include "msh_utils.hpp"
 
 using namespace std;
@@ -45,32 +46,20 @@ PrintErrAndExit(const char * const cpccErrMsg)
  *============================================================================*/
 mxArray* create_cell_and_fill_partially()
 {
-  mwSize anDims[2] = { 2, 6 };
+  mwSize anDims[2] = { 2, 3 };
   mxArray *pkCell  = mxCreateCellArray(2,anDims);
 
   // nodes section
-  mxArray *pkNameMatrix = mxCreateString("coords");
+  mxArray *pkNameMatrix = mxCreateString("physicalnames");
   mxSetCell(pkCell,0*2,pkNameMatrix);
 
   // elements section
-  pkNameMatrix = mxCreateString("elems");
+  pkNameMatrix = mxCreateString("coords");
   mxSetCell(pkCell,1*2,pkNameMatrix);
 
   // nodesets section
-  pkNameMatrix = mxCreateString("nodesets");
+  pkNameMatrix = mxCreateString("elems");
   mxSetCell(pkCell,2*2,pkNameMatrix);
-
-  // sidesets section
-  pkNameMatrix = mxCreateString("sidesets");
-  mxSetCell(pkCell,3*2,pkNameMatrix);
-
-  // properties section
-  pkNameMatrix = mxCreateString("properties");
-  mxSetCell(pkCell,4*2,pkNameMatrix);
-
-  // materials section
-  pkNameMatrix = mxCreateString("materials");
-  mxSetCell(pkCell,5*2,pkNameMatrix);
 
   return pkCell;
 }
@@ -105,9 +94,9 @@ mexFunction(int nlhs,       mxArray *plhs[],
   /****************************************************************************/
   /* open inp-file                                                            */
   /****************************************************************************/
-  ifstream kInpFileStream;
+  ifstream kMshFileStream;
   try {
-    open_inp_file(prhs[0], kInpFileStream);
+    open_msh_file(prhs[0], kMshFileStream);
   }
   catch (string err) {
     PrintErrAndExit((err+"\n").c_str());
@@ -124,10 +113,7 @@ mexFunction(int nlhs,       mxArray *plhs[],
   /****************************************************************************/
   msh_nodes_section      nodes_section     ;
   msh_elements_section   elements_section  ;
-  inp_nodesets_section   nodesets_section  ;
-  inp_sidesets_section   sidesets_section  ;
-  inp_properties_section properties_section;
-  inp_assembly_section   assembly_section;
+  msh_physical_section   physical_section  ;
   string kLine;
 
 
@@ -135,50 +121,56 @@ mexFunction(int nlhs,       mxArray *plhs[],
 
   try {
 //	mexPrintf("Entering scan loop\n");
-    while (getline_checked(kInpFileStream, kLine))
+    while (getline_checked(kMshFileStream, kLine))
     {
 //      mexPrintf("line  : %s\n",kLine.c_str());
 //      continue;
 //      mexPrintf("header: %s.\n",inp_nodes_section::ms_SectionHeader.c_str());
 
-      if (!kLine.compare(inp_nodes_section::ms_SectionHeader))
+	  if (!kLine.compare(msh_physical_section::ms_SectionHeader)){
+		  mxArray *pkArray = physical_section.scan(kMshFileStream);
+		  mxSetCell(pkCell,0*2+1,pkArray);
+	  }
+
+      if (!kLine.compare(msh_nodes_section::ms_SectionHeader))
       {
-        mxArray *pkArray = nodes_section.scan(kInpFileStream);
-//        mxArray *pkArray = mxCreateCellArray(0, NULL);
-        mxSetCell(pkCell,0*2+1,pkArray);
-      }
-      else if (!kLine.compare(inp_elements_section::ms_SectionHeader))
-      {
-        mxArray *pkArray = elements_section.scan(kInpFileStream);
+//		mexPrintf("line  : %s\n",kLine.c_str());
+        mxArray *pkArray = nodes_section.scan(kMshFileStream);
 //        mxArray *pkArray = mxCreateCellArray(0, NULL);
         mxSetCell(pkCell,1*2+1,pkArray);
       }
-      else if (!kLine.compare(inp_nodesets_section::ms_SectionHeader))
+      else if (!kLine.compare(msh_elements_section::ms_SectionHeader))
       {
-        mxArray *pkArray = nodesets_section.scan(kInpFileStream);
+        mxArray *pkArray = elements_section.scan(kMshFileStream);
 //        mxArray *pkArray = mxCreateCellArray(0, NULL);
         mxSetCell(pkCell,2*2+1,pkArray);
       }
-      else if (!kLine.compare(inp_sidesets_section::ms_SectionHeader))
-      {
-        mxArray *pkArray = sidesets_section.scan(kInpFileStream);
-//        mxArray *pkArray = mxCreateCellArray(0, NULL);
-        mxSetCell(pkCell,3*2+1,pkArray);
-      }
-      else if (!kLine.compare(inp_properties_section::ms_SectionHeader))
-      {
-        mxArray *pkArray = properties_section.scan(kInpFileStream);
-//        mxArray *pkArray = mxCreateCellArray(0, NULL);
-        mxSetCell(pkCell,4*2+1,pkArray);
-      }
-      else if (!kLine.compare(inp_assembly_section::ms_SectionHeader))
-      {
-        mxArray *pkArray = assembly_section.scan(kInpFileStream);
-//        mxArray *pkArray = mxCreateCellArray(0, NULL);
-        mxSetCell(pkCell,5*2+1,pkArray);
-      }
+//       else if (!kLine.compare(msh_nodesets_section::ms_SectionHeader))
+//       {
+//         mxArray *pkArray = nodesets_section.scan(kMshFileStream);
+// //        mxArray *pkArray = mxCreateCellArray(0, NULL);
+//         mxSetCell(pkCell,2*2+1,pkArray);
+//       }
+//       else if (!kLine.compare(msh_sidesets_section::ms_SectionHeader))
+//       {
+//         mxArray *pkArray = sidesets_section.scan(kMshFileStream);
+// //        mxArray *pkArray = mxCreateCellArray(0, NULL);
+//         mxSetCell(pkCell,3*2+1,pkArray);
+//       }
+//       else if (!kLine.compare(msh_properties_section::ms_SectionHeader))
+//       {
+//         mxArray *pkArray = properties_section.scan(kMshFileStream);
+// //        mxArray *pkArray = mxCreateCellArray(0, NULL);
+//     	mxSetCell(pkCell,4*2+1,pkArray);
+//       }
+//       else if (!kLine.compare(msh_assembly_section::ms_SectionHeader))
+//       {
+//         mxArray *pkArray = assembly_section.scan(kMshFileStream);
+// //        mxArray *pkArray = mxCreateCellArray(0, NULL);
+//         mxSetCell(pkCell,5*2+1,pkArray);
+//       }
 
-    } /* while (getline_checked(kInpFileStream, kLine)) */
+    } /* while (getline_checked(kMshFileStream, kLine)) */
   }
   catch (string err) {
     PrintErrAndExit((err+"\n").c_str());

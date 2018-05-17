@@ -1,5 +1,5 @@
 /**
- * inp_nodes_section.hpp
+ * msh_nodes_section.hpp
  *
  * Copyright: Michael Dudzinski,
  *  Department of the Theory of Electrical Engineering,
@@ -105,8 +105,8 @@ namespace msh_n {
     msh_nodes_section();
 
     mxArray* scan(std::ifstream &rkMshFileStream);
-  }; /* class inp_nodes_section */
+}; /* class msh_nodes_section */
 
-}; /* namespace inp_n */
+}; /* namespace msh_n */
 
-#endif /* __INP_NODES_SECTION_HEADER_FILE_INCLUDED__ */
+#endif /* __MSH_NODES_SECTION_HEADER_FILE_INCLUDED__ */

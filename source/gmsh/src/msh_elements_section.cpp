@@ -11,11 +11,12 @@ using namespace std;
 
 namespace msh_n {
 
-  const string inp_elements_section::ms_SectionHeader = "********************************** E L E M E N T S ****************************";
+  const string msh_elements_section::ms_SectionHeader = "$Elements";
 
   /****************************************************************************/
-  inp_elements_section::inp_elements_section()
+  msh_elements_section::msh_elements_section()
   :
+  m_akSetsLine (0),
   m_akSetsTri  (0),
   m_akSetsTetra(0)
   {
@@ -23,49 +24,62 @@ namespace msh_n {
   }
   /****************************************************************************/
   mxArray*
-  inp_elements_section::create_and_fill_matlab_structure()
+  msh_elements_section::create_and_fill_matlab_structure()
   {
-    const mwSize nSetsQuantity = m_akSetsTri.size()+m_akSetsTetra.size();
+    const mwSize nSetsQuantity = 3;
 
     mwSize anDims[2] = { 2, nSetsQuantity };
     mxArray *pkCell  = mxCreateCellArray(2,anDims);
 
-    size_t nCurrSetTri=0,nCurrSetTetra=0;
+    size_t nCurrSetLine=0,nCurrSetTri=0,nCurrSetTetra=0;
 
     for (size_t i=0; i<nSetsQuantity; ++i)
     {
-      if (m_akSetsTri.size() && m_akSetsTri[nCurrSetTri].m_nSectionIdx==i)
+
+		if (m_akSetsLine.size() && m_akSetsTri[0].m_nLength)
+		{
+
+		  /* content of nodeset */
+		  mxArray *pkElemsMatrix = mxCreateNumericMatrix(0, 0, mxDOUBLE_CLASS, mxREAL);
+
+		  mxSetData(pkElemsMatrix, m_akSetsLine[0].m_pfBuffer);
+		  mxSetM   (pkElemsMatrix, m_akSetsLine[0].m_nLength );
+		  mxSetN   (pkElemsMatrix, 3                                    );
+
+		  mxSetCell(pkCell,0*2+1,pkElemsMatrix);
+		  ++i;
+
+		  ++nCurrSetLine;
+		}
+
+      if (m_akSetsTri.size() && m_akSetsTri[0].m_nLength)
       {
-        /* name of nodeset */
-        mxArray *pkNameMatrix = mxCreateString(m_akSetsTri[nCurrSetTri].m_kSectionName.c_str());
-        mxSetCell(pkCell,i*2,pkNameMatrix);
 
         /* content of nodeset */
         mxArray *pkElemsMatrix = mxCreateNumericMatrix(0, 0, mxDOUBLE_CLASS, mxREAL);
 
-        mxSetData(pkElemsMatrix, m_akSetsTri[nCurrSetTri].m_pfBuffer);
-        mxSetM   (pkElemsMatrix, m_akSetsTri[nCurrSetTri].m_nLength );
+        mxSetData(pkElemsMatrix, m_akSetsTri[0].m_pfBuffer);
+        mxSetM   (pkElemsMatrix, m_akSetsTri[0].m_nLength );
         mxSetN   (pkElemsMatrix, 4                                  );
 
-        mxSetCell(pkCell,i*2+1,pkElemsMatrix);
+        mxSetCell(pkCell,1*2+1,pkElemsMatrix);
+		++i;
 
         ++nCurrSetTri;
       }
 
-      if (m_akSetsTetra.size() && m_akSetsTetra[nCurrSetTetra].m_nSectionIdx==i)
+      if (m_akSetsTetra.size() && m_akSetsTetra[0].m_nLength)
       {
-        /* name of nodeset */
-        mxArray *pkNameMatrix = mxCreateString(m_akSetsTetra[nCurrSetTetra].m_kSectionName.c_str());
-        mxSetCell(pkCell,i*2,pkNameMatrix);
 
         /* content of nodeset */
         mxArray *pkElemsMatrix = mxCreateNumericMatrix(0, 0, mxDOUBLE_CLASS, mxREAL);
 
-        mxSetData(pkElemsMatrix, m_akSetsTetra[nCurrSetTetra].m_pfBuffer);
-        mxSetM   (pkElemsMatrix, m_akSetsTetra[nCurrSetTetra].m_nLength );
+        mxSetData(pkElemsMatrix, m_akSetsTetra[0].m_pfBuffer);
+        mxSetM   (pkElemsMatrix, m_akSetsTetra[0].m_nLength );
         mxSetN   (pkElemsMatrix, 5                                      );
 
-        mxSetCell(pkCell,i*2+1,pkElemsMatrix);
+        mxSetCell(pkCell,2*2+1,pkElemsMatrix);
+		++i;
 
         ++nCurrSetTetra;
       }
@@ -75,7 +89,7 @@ namespace msh_n {
   }
   /****************************************************************************/
   void
-  inp_elements_section::read_set_header(const string &crkLine      ,
+  msh_elements_section::read_set_header(const string &crkLine      ,
                                         string       &rkSectionName,
                                         string       &rkSectionType)
   const
@@ -96,8 +110,35 @@ namespace msh_n {
     trim(rkSectionName);
   }
   /****************************************************************************/
+
   void
-  inp_elements_section::read_element_tri(const string &crkLine,
+  msh_elements_section::read_element_line(const string &crkLine,
+										 double       &rfN1   ,
+										 double       &rfN2   ,
+										 double       &rfID
+										 )
+  const
+  {
+	size_t nNodeID=0;
+	stringstream kStream(crkLine);
+
+	char c=0;
+
+	kStream>>nNodeID;
+	rfID=nNodeID;
+
+	do { kStream.get(c); } while ( c!=',');
+	kStream>>nNodeID;
+	rfN1=nNodeID;
+
+	do { kStream.get(c); } while ( c!=',');
+	kStream>>nNodeID;
+	rfN2=nNodeID;
+
+  }
+
+  void
+  msh_elements_section::read_element_tri(const string &crkLine,
                                          double       &rfN1   ,
                                          double       &rfN2   ,
                                          double       &rfN3   ,
@@ -127,7 +168,7 @@ namespace msh_n {
   }
   /****************************************************************************/
   void
-  inp_elements_section::read_element_tetra(const string &crkLine,
+  msh_elements_section::read_element_tetra(const string &crkLine,
                                            double       &rfN1   ,
                                            double       &rfN2   ,
                                            double       &rfN3   ,
@@ -161,19 +202,22 @@ namespace msh_n {
   }
   /****************************************************************************/
   bool
-  inp_elements_section::read_structure(ifstream &rkInpFileStream)
+  msh_elements_section::read_structure(ifstream &rkMshFileStream)
   {
 //    mexPrintf("Reading structure\n");
 
-    eScanState eState=SS_in_elements_section;
-    std::streampos nPrevStreamPos=rkInpFileStream.tellg();
+    eScanState eState=SS_read_set_header;
+    std::streampos nPrevStreamPos=rkMshFileStream.tellg();
 
     size_t nCurrSetQuantity=0;
     size_t nCurrSet=0;
+	size_t nLine=0;
+	size_t nTri=0;
+	size_t nTet=0;
 
     string kLine;
 
-    while ((eState!=SS_out_elements_section) && getline_checked(rkInpFileStream,kLine))
+    while ((eState!=SS_out_elements_section) && getline_checked(rkMshFileStream,kLine))
     {
 //      mexPrintf("line  : %s.\n",kLine.c_str());
 
@@ -182,15 +226,15 @@ namespace msh_n {
       {
         case SS_in_elements_section:
         {
-          if (!kLine.find("*ELEMENT"))
+          if (!kLine.find("$Elements"))
           {
-            rkInpFileStream.seekg(nPrevStreamPos); /* line to be reread */
+            rkMshFileStream.seekg(nPrevStreamPos); /* line to be reread */
             eState = SS_read_set_header;
 //            mexPrintf("Switching from SS_in_elements_section to SS_read_set_header\n");
             break;
           }
 
-          if (!kLine.compare("**"))
+          if (!kLine.compare("$EndElements"))
           {
             return false; /* signal empty section */
           }
@@ -201,146 +245,108 @@ namespace msh_n {
         case SS_read_set_header:
         {
 //          mexPrintf("reading header: %s\n",kLine.c_str());
-          nCurrSetQuantity = 0;
-          nCurrSet         = m_akSetsTri.size()+m_akSetsTetra.size();
+          nCurrSet         = m_akSetsLine.size()+m_akSetsTri.size()+m_akSetsTetra.size();
+		  nCurrSetQuantity = 0;
+		  std::vector<double> afValues;
 
           std::string kSectionName, kSectionType;
-          read_set_header(kLine,kSectionName, kSectionType);
+          read_numeric_values(kLine,afValues);
 
           /* dependent on element switch state to read tri or tetra */
-          if (!kSectionType.compare("STRI3"))
-          {
-            m_akSetsTri.resize(m_akSetsTri.size()+1);
-            m_akSetsTri.back().m_kSectionName = kSectionName;
-            m_akSetsTri.back().m_nSectionIdx  = nCurrSet;
-
-            eState=SS_read_element_tri;
-//            mexPrintf("Switching from SS_read_set_header to SS_read_element_tri\n");
-            break;
-          }
-          else if (!kSectionType.compare("C3D4"))
-          {
-            m_akSetsTetra.resize(m_akSetsTetra.size()+1);
-            m_akSetsTetra.back().m_kSectionName = kSectionName;
-            m_akSetsTetra.back().m_nSectionIdx  = nCurrSet;
-
-            eState=SS_read_element_tetra;
-//            mexPrintf("Switching from SS_read_set_header to SS_read_element_tetra\n");
-            break;
+          if (afValues.size()==1){
+			  eState = SS_read_element;
           }
           else
-            throw std::string("inp_elements_section::read_structure: element line must contain exactly 4 or exactly 5 values");
+            throw std::string("msh_elements_section::read_structure: element line must contain exactly 4 or exactly 5 values");
 
           break;
         }
 
-        case SS_read_element_tri:
+        case SS_read_element:
         {
-//          mexPrintf("reading tri: %s\n",kLine.c_str());
+//          mexPrintf("reading element: %s\n",kLine.c_str());
 
-          if (!kLine.find("*ELEMENT"))
+          if (!kLine.find("$Elements"))
           {
             m_akSetsTri.back().m_nLength=nCurrSetQuantity;
 
-            rkInpFileStream.seekg(nPrevStreamPos); /* line to be reread */
+            rkMshFileStream.seekg(nPrevStreamPos); /* line to be reread */
             eState = SS_read_set_header;
-//            mexPrintf("Switching from SS_read_element_tri to SS_read_set_header\n");
+//            mexPrintf("Switching from SS_read_element to SS_read_set_header\n");
             break;
           }
 
-          if (!kLine.compare("**"))
+          if (!kLine.compare("$EndElements"))
           {
-            m_akSetsTri.back().m_nLength=nCurrSetQuantity;
+            //m_akSetsTri.back().m_nLength=nCurrSetQuantity;
+			m_akSetsLine.resize(m_akSetsLine.size()+1);
+			m_akSetsTri.resize(m_akSetsTri.size()+1);
+			m_akSetsTetra.resize(m_akSetsTetra.size()+1);
+			m_akSetsLine.back().m_nLength=nLine;
+			m_akSetsTri.back().m_nLength=nTri;
+			m_akSetsTetra.back().m_nLength=nTet;
 
             eState = SS_out_elements_section;
-//            mexPrintf("Switching from SS_read_element_tri to SS_out_elements_section\n");
+//            mexPrintf("Switching from SS_read_element to SS_out_elements_section\n");
             break;
           }
 
-          ++nCurrSetQuantity;
-
-          break;
-        }
-
-        case SS_read_element_tetra:
-        {
-//          mexPrintf("reading tetra: %s\n",kLine.c_str());
-
-          if (!kLine.find("*ELEMENT"))
-          {
-            m_akSetsTetra.back().m_nLength=nCurrSetQuantity;
-
-            rkInpFileStream.seekg(nPrevStreamPos); /* line to be reread */
-            eState = SS_read_set_header;
-//            mexPrintf("Switching from SS_read_element_tetra to SS_read_set_header\n");
-            break;
-          }
-
-          if (!kLine.compare("**"))
-          {
-            m_akSetsTetra.back().m_nLength=nCurrSetQuantity;
-
-            eState = SS_out_elements_section;
-//            mexPrintf("Switching from SS_read_element_tetra to SS_out_elements_section\n");
-            break;
-          }
-
-          ++nCurrSetQuantity;
+		  std::vector<int> afValues;
+			read_numeric_values(kLine,afValues);
+		  switch(afValues[1]){
+			  case Type_line:
+				++nLine;
+			  break;
+			  case Type_triangle:
+				++nTri;
+			  break;
+			  case Type_tetra:
+				++nTet;
+			  break;
+		  };
 
           break;
         }
 
         default:
-          throw std::string("inp_elements_section::read_structure: eState contains an undefined state");
+          throw std::string("msh_elements_section::read_structure: eState contains an undefined state");
 
       } /* switch (eState) */
 
-      nPrevStreamPos=rkInpFileStream.tellg();
-    } /* while ((eState!=SS_out_elements_section) && getline_checked(rkInpFileStream,kLine)) */
+      nPrevStreamPos=rkMshFileStream.tellg();
+    } /* while ((eState!=SS_out_elements_section) && getline_checked(rkMshFileStream,kLine)) */
 
     if (eState != SS_out_elements_section)
-      throw std::string("inp_elements_section::read_structure: the end of the ***...* E L E M E N T S *...*** section is missing");
-
-//    for (size_t i=0; i<m_akSetsTri.size(); ++i)
-//    {
-//        mexPrintf("Elementset tri %s: idx=%d, quantity=%d.\n",
-//                  m_akSetsTri[i].m_kSectionName.c_str(),
-//                  m_akSetsTri[i].m_nSectionIdx,
-//                  m_akSetsTri[i].m_nLength);
-//    }
-//
-//    for (size_t i=0; i<m_akSetsTetra.size(); ++i)
-//    {
-//      mexPrintf("Elementset tetra %s: idx=%d, quantity=%d.\n",
-//                m_akSetsTetra[i].m_kSectionName.c_str(),
-//                m_akSetsTetra[i].m_nSectionIdx,
-//                m_akSetsTetra[i].m_nLength);
-//    }
+      throw std::string("msh_elements_section::read_structure: the end of the $Elements section is missing");
 
     return true;
   }
   /****************************************************************************/
   void
-  inp_elements_section::read_contents(ifstream &rkInpFileStream)
+  msh_elements_section::read_contents(ifstream &rkMshFileStream)
   {
 //    mexPrintf("Reading content\n");
 
-    eScanState eState=SS_in_elements_section;
-    std::streampos nPrevStreamPos=rkInpFileStream.tellg();
+    eScanState eState=SS_read_set_header;
+    std::streampos nPrevStreamPos=rkMshFileStream.tellg();
 
     size_t nCurrSetQuantity=0;
+	int    nCurrSetLine=-1;
     int    nCurrSetTri=-1;
     int    nCurrSetTetra=-1;
+	int    nCurrLine=0;
+	int    nCurrTri=0;
+	int    nCurrTet=0;
 
     double n1,n2,n3,n4, ID;
 
     string kLine;
 
-//    getline_checked(rkInpFileStream,kLine);
-//    rkInpFileStream.seekg(nPrevStreamPos); /* line to be reread */
+//    getline_checked(rkMshFileStream,kLine);
+//    rkMshFileStream.seekg(nPrevStreamPos); /* line to be reread */
 //    mexPrintf("line: %s\n",kLine.c_str());
 
-    while ((eState!=SS_out_elements_section) && getline_checked(rkInpFileStream,kLine))
+    while ((eState!=SS_out_elements_section) && getline_checked(rkMshFileStream,kLine))
     {
 
       /* check for scanner state */
@@ -348,9 +354,9 @@ namespace msh_n {
       {
         case SS_in_elements_section:
         {
-          if (!kLine.find("*ELEMENT"))
+          if (!kLine.find("$Elements"))
           {
-            rkInpFileStream.seekg(nPrevStreamPos); /* line to be reread */
+            rkMshFileStream.seekg(nPrevStreamPos); /* line to be reread */
             eState = SS_read_set_header;
 //            mexPrintf("Switching from SS_in_elements_section to SS_read_set_header\n");
             break;
@@ -368,198 +374,114 @@ namespace msh_n {
         case SS_read_set_header:
         {
           nCurrSetQuantity = 0;
-//          mexPrintf("reading header 2: %s\n",kLine.c_str());
-
-//          std::string kSectionName;
-//          read_set_header(kLine,kSectionName);
-
-
-          /* check type of coordinate to read */
-//          std::vector<double> afValues;
-
-//          nPrevStreamPos=rkInpFileStream.tellg();
-//          if (!getline_checked(rkInpFileStream,kLine)) break;
-//          read_numeric_values(kLine,afValues);
-//          rkInpFileStream.seekg(nPrevStreamPos); /* line to be reread */
-//
-////          mexPrintf("line contains %d values.\n",afValues.size());
-//
-//          /* dependent on coordinate switch state to read 2D or 3D */
-//          switch (afValues.size())
-//          {
-//            case 4:
-//            {
-//              ++nCurrSetTri;
-//
-//              create_vector_array_3d(m_akSetsTri[nCurrSetTri].m_nLength ,
-//                                     m_akSetsTri[nCurrSetTri].m_pfBuffer,
-//                                     m_akSetsTri[nCurrSetTri].m_pfN1    ,
-//                                     m_akSetsTri[nCurrSetTri].m_pfN2    ,
-//                                     m_akSetsTri[nCurrSetTri].m_pfN3    );
-//
-//              eState=SS_read_element_tri;
-//              mexPrintf("Switching from SS_read_set_header to SS_read_element_tri\n");
-//              break;
-//            }
-//
-//            case 5:
-//            {
-//              ++nCurrSetTetra;
-//
-//              create_vector_array_4d(m_akSetsTetra[nCurrSetTetra].m_nLength ,
-//                                     m_akSetsTetra[nCurrSetTetra].m_pfBuffer,
-//                                     m_akSetsTetra[nCurrSetTetra].m_pfN1    ,
-//                                     m_akSetsTetra[nCurrSetTetra].m_pfN2    ,
-//                                     m_akSetsTetra[nCurrSetTetra].m_pfN3    ,
-//                                     m_akSetsTetra[nCurrSetTetra].m_pfN4    );
-//
-//              eState=SS_read_element_tetra;
-//              mexPrintf("Switching from SS_read_set_header to SS_read_element_tetra\n");
-//              break;
-//            }
-//
-//            default: /* already checked in read_structure */
-//              throw std::string("inp_elements_section::read_structure: element line must contain exactly 4 or exactly 5 values");
-//          }
+		  std::vector<double> afValues;
 
           std::string kSectionName, kSectionType;
-          read_set_header(kLine,kSectionName, kSectionType);
+          read_numeric_values(kLine,afValues);
+//		  mexPrintf("%s/n",kLine.c_str());
 
-          /* dependent on element switch state to read tri or tetra */
-          if (!kSectionType.compare("STRI3"))
-          {
-            ++nCurrSetTri;
-            // vector for indices
-
-
-
-\
-             /*
-            create_vector_array_3d(m_akSetsTri[nCurrSetTri].m_nLength ,
-                                   m_akSetsTri[nCurrSetTri].m_pfBuffer,
-                                   m_akSetsTri[nCurrSetTri].m_pfN1    ,
-                                   m_akSetsTri[nCurrSetTri].m_pfN2    ,
-                                   m_akSetsTri[nCurrSetTri].m_pfN3    );
-              */
-              create_vector_array_4d(m_akSetsTri[nCurrSetTri].m_nLength ,
-                                     m_akSetsTri[nCurrSetTri].m_pfBuffer,
-                                     m_akSetsTri[nCurrSetTri].m_pfId    ,
-                                     m_akSetsTri[nCurrSetTri].m_pfN1    ,
-                                     m_akSetsTri[nCurrSetTri].m_pfN2    ,
-                                     m_akSetsTri[nCurrSetTri].m_pfN3    );
-
-            eState=SS_read_element_tri;
-//            mexPrintf("Switching from SS_read_set_header to SS_read_element_tri\n");
-            break;
-
-          }
-          else if (!kSectionType.compare("C3D4"))
-          {
-            ++nCurrSetTetra;
-
-            create_vector_array_5d(m_akSetsTetra[nCurrSetTetra].m_nLength ,
-                                   m_akSetsTetra[nCurrSetTetra].m_pfBuffer,
-                                   m_akSetsTetra[nCurrSetTetra].m_pfId      ,
-                                   m_akSetsTetra[nCurrSetTetra].m_pfN1    ,
-                                   m_akSetsTetra[nCurrSetTetra].m_pfN2    ,
-                                   m_akSetsTetra[nCurrSetTetra].m_pfN3    ,
-                                   m_akSetsTetra[nCurrSetTetra].m_pfN4    );
-
-            eState=SS_read_element_tetra;
-//            mexPrintf("Switching from SS_read_set_header to SS_read_element_tetra\n");
-            break;
-
+          if (afValues.size()==1){
+			  eState = SS_read_element;
+			  if(m_akSetsLine[0].m_nLength>0)
+			  	create_vector_array_3d(m_akSetsLine[0].m_nLength ,
+                                     m_akSetsLine[0].m_pfBuffer,
+                                     m_akSetsLine[0].m_pfId    ,
+                                     m_akSetsLine[0].m_pfN1    ,
+                                     m_akSetsLine[0].m_pfN2    );
+			if(m_akSetsTri[0].m_nLength>0)
+				create_vector_array_4d(m_akSetsTri[0].m_nLength  ,
+								   m_akSetsTri[0].m_pfBuffer ,
+								   m_akSetsTri[0].m_pfId     ,
+								   m_akSetsTri[0].m_pfN1     ,
+								   m_akSetsTri[0].m_pfN2     ,
+							       m_akSetsTri[0].m_pfN3     );
+			if(m_akSetsTetra[0].m_nLength>0)
+		   		create_vector_array_5d(m_akSetsTetra[0].m_nLength  ,
+								   m_akSetsTetra[0].m_pfBuffer,
+								   m_akSetsTetra[0].m_pfId    ,
+								   m_akSetsTetra[0].m_pfN1    ,
+								   m_akSetsTetra[0].m_pfN2    ,
+								   m_akSetsTetra[0].m_pfN3    ,
+								   m_akSetsTetra[0].m_pfN4    );
           }
           else
-            throw std::string("inp_elements_section::read_structure: element line must contain exactly 4 or exactly 5 values");
+            throw std::string("msh_elements_section::read_structure: element line must contain exactly 4 or exactly 5 values");
 
           break;
         }
 
-        case SS_read_element_tri:
+        case SS_read_element:
         {
-          if (!kLine.find("*ELEMENT"))
+          if (!kLine.find("$Elements"))
           {
-            rkInpFileStream.seekg(nPrevStreamPos); /* line to be reread */
+            rkMshFileStream.seekg(nPrevStreamPos); /* line to be reread */
             eState = SS_read_set_header;
-//            mexPrintf("Switching from SS_read_element_tri to SS_read_set_header\n");
+//            mexPrintf("Switching from SS_read_element to SS_read_set_header\n");
             break;
           }
 
-          if (!kLine.compare("**"))
+          if (!kLine.compare("$EndElements"))
           {
             eState = SS_out_elements_section;
-//            mexPrintf("Switching from SS_read_element_tri to SS_out_elements_section\n");
+//            mexPrintf("Switching from SS_read_element to SS_out_elements_section\n");
             break;
           }
-
-          read_element_tri(kLine,n1,n2,n3, ID);
-          m_akSetsTri[nCurrSetTri].m_pfN1[nCurrSetQuantity]=n1;
-          m_akSetsTri[nCurrSetTri].m_pfN2[nCurrSetQuantity]=n2;
-          m_akSetsTri[nCurrSetTri].m_pfN3[nCurrSetQuantity]=n3;
-            //
-          m_akSetsTri[nCurrSetTri].m_pfId[nCurrSetQuantity]=ID;
-          ++nCurrSetQuantity;
-
-          break;
-        }
-
-        case SS_read_element_tetra:
-        {
-          if (!kLine.find("*ELEMENT"))
-          {
-            rkInpFileStream.seekg(nPrevStreamPos); /* line to be reread */
-            eState = SS_read_set_header;
-//            mexPrintf("Switching from SS_read_element_tetra to SS_read_set_header\n");
-            break;
-          }
-
-          if (!kLine.compare("**"))
-          {
-            eState = SS_out_elements_section;
-//            mexPrintf("Switching from SS_read_element_tetra to SS_out_elements_section\n");
-            break;
-          }
-
-          read_element_tetra(kLine,n1,n2,n3,n4,ID);
-//          mexPrintf("coordinate: %f, %f, %f,\n",x,y,z);
-          m_akSetsTetra[nCurrSetTetra].m_pfN1[nCurrSetQuantity]=n1;
-          m_akSetsTetra[nCurrSetTetra].m_pfN2[nCurrSetQuantity]=n2;
-          m_akSetsTetra[nCurrSetTetra].m_pfN3[nCurrSetQuantity]=n3;
-          m_akSetsTetra[nCurrSetTetra].m_pfN4[nCurrSetQuantity]=n4;
-          m_akSetsTetra[nCurrSetTetra].m_pfId[nCurrSetQuantity]=ID;
-
-          ++nCurrSetQuantity;
+		  std::vector<int> afValues;
+          read_numeric_values(kLine,afValues);
+		  int nInts = int(afValues[2]);
+		  switch(afValues[1]){
+			  case Type_line:
+				m_akSetsLine[0].m_pfN1[nCurrLine]=afValues[nInts+3];
+				m_akSetsLine[0].m_pfN2[nCurrLine]=afValues[nInts+4];
+				m_akSetsLine[0].m_pfId[nCurrLine]=afValues[3];
+				++nCurrLine;
+			  break;
+			  case Type_triangle:
+				  m_akSetsTri[0].m_pfN1[nCurrTri]=afValues[nInts+3];
+				  m_akSetsTri[0].m_pfN2[nCurrTri]=afValues[nInts+4];
+				  m_akSetsTri[0].m_pfN3[nCurrTri]=afValues[nInts+5];
+				  m_akSetsTri[0].m_pfId[nCurrTri]=afValues[3];
+				  ++nCurrTri;
+			  break;
+			  case Type_tetra:
+				  m_akSetsTetra[0].m_pfN1[nCurrTet]=afValues[nInts+3];
+				  m_akSetsTetra[0].m_pfN2[nCurrTet]=afValues[nInts+4];
+				  m_akSetsTetra[0].m_pfN3[nCurrTet]=afValues[nInts+5];
+				  m_akSetsTetra[0].m_pfN4[nCurrTet]=afValues[nInts+6];
+				  m_akSetsTetra[0].m_pfId[nCurrTet]=afValues[3];
+				  ++nCurrTet;
+			  break;
+		  }
 
           break;
         }
 
         default:
-          throw std::string("inp_elements_section::read_structure: eState contains an undefined state");
+          throw std::string("msh_elements_section::read_structure: eState contains an undefined state");
 
       } /* switch (eState) */
 
-      nPrevStreamPos=rkInpFileStream.tellg();
-    } /* while ((eState!=SS_out_elements_section) && getline_checked(rkInpFileStream,kLine)) */
+      nPrevStreamPos=rkMshFileStream.tellg();
+    } /* while ((eState!=SS_out_elements_section) && getline_checked(rkMshFileStream,kLine)) */
   }
   /****************************************************************************/
   mxArray*
-  inp_elements_section::scan(ifstream &rkInpFileStream)
+  msh_elements_section::scan(ifstream &rkMshFileStream)
   {
-    streampos nSectionStart = rkInpFileStream.tellg();
+    streampos nSectionStart = rkMshFileStream.tellg();
 
-    if (!read_structure(rkInpFileStream)) return mxCreateCellArray(0, NULL);
+    if (!read_structure(rkMshFileStream)) return mxCreateCellArray(0, NULL);
 
-    rkInpFileStream.clear();
-    rkInpFileStream.seekg(nSectionStart);
+    rkMshFileStream.clear();
+    rkMshFileStream.seekg(nSectionStart);
 
 //    mexPrintf("Reading content\n");
 
-    read_contents(rkInpFileStream);
+    read_contents(rkMshFileStream);
 
     return create_and_fill_matlab_structure();
 //    return mxCreateCellArray(0, NULL);
   }
   /****************************************************************************/
 
-}; /* namespace inp_n */
+}; /* namespace msh_n */

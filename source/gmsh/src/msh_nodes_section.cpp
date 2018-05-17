@@ -11,7 +11,7 @@ using namespace std;
 
 namespace msh_n {
 
-  const string inp_nodes_section::ms_SectionHeader = "$Nodes";
+  const string msh_nodes_section::ms_SectionHeader = "$Nodes";
 
   /****************************************************************************/
   msh_nodes_section::msh_nodes_section()
@@ -106,7 +106,7 @@ namespace msh_n {
   }
   /****************************************************************************/
   void
-  inp_nodes_section::read_set_header(const string &crkLine      ,
+  msh_nodes_section::read_set_header(const string &crkLine      ,
                                      string       &rkSectionName)
   const
   {
@@ -121,7 +121,7 @@ namespace msh_n {
   }
   /****************************************************************************/
   void
-  inp_nodes_section::read_node_2d(const string &crkLine,
+  msh_nodes_section::read_node_2d(const string &crkLine,
                                   double       &rfX    ,
                                   double       &rfY    )
   const
@@ -130,7 +130,7 @@ namespace msh_n {
 //    read_numeric_values(crkLine,afValues);
 //    afValues.erase(afValues.begin()); /* first value is node id */
 //      if (afValues.size()!=2)
-//        throw std::string("inp_nodes_section::read_node_2d: exactly 2 values expected on the line");
+//        throw std::string("msh_nodes_section::read_node_2d: exactly 2 values expected on the line");
 //
 //    rfX=afValues[0];
 //    rfY=afValues[1];
@@ -150,7 +150,7 @@ namespace msh_n {
   }
   /****************************************************************************/
   void
-  inp_nodes_section::read_node_3d(const string &crkLine,
+  msh_nodes_section::read_node_3d(const string &crkLine,
                                   double       &rfX    ,
                                   double       &rfY    ,
                                   double       &rfZ    )
@@ -161,7 +161,7 @@ namespace msh_n {
 //    read_numeric_values(crkLine,afValues);
 //    afValues.erase(afValues.begin()); /* first value is node id */
 //    if (afValues.size()!=3)
-//      throw std::string("inp_nodes_section::read_node_3d: exactly 3 values expected on the line");
+//      throw std::string("msh_nodes_section::read_node_3d: exactly 3 values expected on the line");
 //
 //    rfX=afValues[0];
 //    rfY=afValues[1];
@@ -188,19 +188,23 @@ namespace msh_n {
   }
   /****************************************************************************/
   bool
-  inp_nodes_section::read_structure(ifstream &rkMshFileStream)
+  msh_nodes_section::read_structure(ifstream &rkMshFileStream)
   {
-    eScanState eState=SS_in_nodes_section;
+    eScanState eState=SS_read_set_header;
     std::streampos nPrevStreamPos=rkMshFileStream.tellg();
 
     size_t nCurrSetQuantity=0;
     size_t nCurrSet=0;
 
     string kLine;
+	int i = 0;
 
     while ((eState!=SS_out_nodes_section) && getline_checked(rkMshFileStream,kLine))
     {
-//      printState(eState,kLine);
+		// if (i<10){
+	  	// 	printState(eState,kLine);
+		// 	++i;
+		// }
 
       /* check for scanner state */
       switch (eState)
@@ -209,7 +213,7 @@ namespace msh_n {
         {
           if (!kLine.find("$Nodes"))
           {
-            rkInpFileStream.seekg(nPrevStreamPos); /* line to be reread */
+            rkMshFileStream.seekg(nPrevStreamPos); /* line to be reread */
             eState = SS_read_set_header;
             break;
           }
@@ -277,7 +281,7 @@ namespace msh_n {
           {
             m_akSets2D.back().m_nLength=nCurrSetQuantity;
 
-            rkInpFileStream.seekg(nPrevStreamPos); /* line to be reread */
+            rkMshFileStream.seekg(nPrevStreamPos); /* line to be reread */
             eState = SS_read_set_header;
             break;
           }
@@ -301,7 +305,7 @@ namespace msh_n {
           {
             m_akSets3D.back().m_nLength=nCurrSetQuantity;
 
-            rkInpFileStream.seekg(nPrevStreamPos); /* line to be reread */
+            rkMshFileStream.seekg(nPrevStreamPos); /* line to be reread */
             eState = SS_read_set_header;
             break;
           }
@@ -325,7 +329,7 @@ namespace msh_n {
       } /* switch (eState) */
 
       nPrevStreamPos=rkMshFileStream.tellg();
-    } /* while ((eState!=SS_out_nodes_section) && getline_checked(rkInpFileStream,kLine)) */
+    } /* while ((eState!=SS_out_nodes_section) && getline_checked(rkMshFileStream,kLine)) */
 
     if (eState != SS_out_nodes_section)
       throw std::string("msh_nodes_section::read_structure: the end of the ***...* N O D E S *...*** section is missing");
@@ -350,10 +354,10 @@ namespace msh_n {
   }
   /****************************************************************************/
   void
-  inp_nodes_section::read_contents(ifstream &rkMshFileStream)
+  msh_nodes_section::read_contents(ifstream &rkMshFileStream)
   {
-    eScanState eState=SS_in_nodes_section;
-    std::streampos nPrevStreamPos=rkInpFileStream.tellg();
+    eScanState eState=SS_read_set_header;
+    std::streampos nPrevStreamPos=rkMshFileStream.tellg();
 
     size_t nCurrSetQuantity=0;
     int    nCurrSet2D=-1;
@@ -501,13 +505,12 @@ namespace msh_n {
       } /* switch (eState) */
 
       nPrevStreamPos=rkMshFileStream.tellg();
-    } /* while ((eState!=SS_out_nodes_section) && getline_checked(rkInpFileStream,kLine)) */
+    } /* while ((eState!=SS_out_nodes_section) && getline_checked(rkMshFileStream,kLine)) */
   }
   /****************************************************************************/
   mxArray*
   msh_nodes_section::scan(ifstream &rkMshFileStream)
   {
-//    mexPrintf("stream position: %d.\n",(int) rkInpFileStream.tellg());
     streampos nSectionStart = rkMshFileStream.tellg();
 
     if (!read_structure(rkMshFileStream)) return mxCreateCellArray(0, NULL);
@@ -523,4 +526,4 @@ namespace msh_n {
   }
   /****************************************************************************/
 
-}; /* namespace inp_n */
+}; /* namespace msh_n */
