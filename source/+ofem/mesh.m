@@ -754,164 +754,62 @@ classdef mesh < handle
                 msh_file_name = fullfile(pwd,char(msh_file_name));
             end
             
-            file = fopen(msh_file_name);
-            if file==-1
-                disp("error");
-                return
+            % check if msh file exists
+            if ~exist(msh_file_name,'file') % for whatever reason this fails on the cluster
+                error('ofem:mesh:FileNotFound','inp-file "%s" not found.\n',inp_file_name);
             end
             
-            content = textscan(file,'%s','delimiter','\n');
-            fclose(file);
-            
+            tic
+            msh=msh_read_file(msh_file_name);
             obj.filetype = 'msh';
+            info.time.file_read=toc;
             
-            fState = "None";
-            j = 1;
-            k = 1;
-            l = 1;
-            for i=1:size(content{1},1)
-                switch fState
-                    case "None"
-                        if content{1}{i} == "$PhysicalNames"
-                            fState = "Phys";
-                        elseif content{1}{i} == "$Nodes"
-                            fState = "Nodes";
-                        elseif content{1}{i} == "$Elements"
-                            fState = "Elements";
-                        end
-                    case "Phys"
-                        if content{1}{i}=="$EndPhysicalNames"
-                            fState = "None";
-                            j = 1;
-                            continue
-                        end
-                        temp = string(split(content{1}{i}));
-                        if size(temp,1)==1
-                            nPhys = str2double(temp{1});
-                            phys = strings(3,nPhys);
-                        else
-                            phys(:,j) = string(split(content{1}{i}));
-                            j = j+1;
-                        end
-                    case "Nodes"
-                        if content{1}{i}=="$EndNodes"
-                            fState = "None";
-                            j = 1;
-                            continue
-                        end
-                        temp = string(split(content{1}{i}));
-                        if size(temp,1)==1
-                            nCo = str2double(temp{1});
-                            nodes = strings(4,nCo);
-                            obj.Nco = nCo;
-                        else
-                            nodes(:,j) = string(split(content{1}{i}));
-                            j = j+1;
-                        end
-                    case "Elements"
-                        if content{1}{i}=="$EndElements"
-                            fState = "None";
-                            j = 1;
-                            continue
-                        end
-                        temp = string(split(content{1}{i}));
-                        if size(temp,1)==1
-                            nEle = str2double(temp{1});
-                            line = strings(7,nEle);
-                            tri = strings(8,nEle);
-                            tet = strings(9,nEle);
-                        else
-                            switch temp(2,1)
-                                case "1"
-                                    line(:,j) = temp;
-                                    j = j+1;
-                                case "2"
-                                    tri(:,k) = temp;
-                                    k = k+1;
-                                case "4"
-                                    tet(:,l) = temp;
-                                    l = l+1;
-                            end
-                        end
-                end
-            end
-            %obj.
-            if isempty(tet{1})
+            % msh is a 2x3 cell array
+            % {2,1} contains the physicalnames defined in gmsh
+            % {2,2} contains the coordinates
+            % {2,3} contains the elements
+            
+            if(isempty(msh{2,3}{2,3}))
+                msh{2,2}{2,1}(:,3) = [];
+                obj.co = ofem.matrixarray(reshape(msh{2,2}{2,1}',2,1,[]));
                 obj.dim = 2;
+                obj.type = 'tri';
+                obj.el = msh{2,3}{2,2}(:,2:4);
             else
+                obj.co = ofem.matrixarray(reshape(msh{2,2}{2,1}',3,1,[]));
                 obj.dim = 3;
+                obj.type = 'tet';
+                obj.el = msh{2,3}{2,3}(:,2:5);
             end
-            j = 1;
-            k = 1;
-            for i = 1:size(phys,2)
-                if startsWith(phys{3,i},'"BD:')
-                    obj.bd{1,j} = phys{3,i};
-                    obj.bd{3,j} = str2double(phys{2,i});    %Element index
-                    j = j+1;
-                elseif startsWith(phys{3,i},'"M:')
-                    obj.parts{1,k} = phys{3,i};
-                    obj.parts{2,k} = 1;                     %Material parameter later on
-                    obj.parts{4,k} = str2double(phys{2,i}); %Element index
-                    k = k+1;
+            obj.Nco = size(obj.co,3);
+            
+            part = 1;
+            bd = 1;
+            Idx = 1:size(obj.el,1);
+            for i=1:size(msh{2,1},2)
+                if startsWith(msh{2,1}{1,i},'M:')
+                    obj.parts{1,part} = msh{2,1}{1,i}(3:end);
+                    if obj.dim == 2
+                        obj.parts{3,part} = Idx(msh{2,3}{2,2}(:,1)==msh{2,1}{2,i});
+                        obj.parts{2,part} = 1; %Material extension
+                    end
+                    if obj.dim == 3
+                        obj.parts{3,part} = Idx(msh{2,3}{2,3}(:,1)==msh{2,1}{2,i});
+                        obj.parts{2,part} = 1; %Material extension
+                    end
+                    part = part+1;
                 end
-                
+                if startsWith(msh{2,1}{1,i},'BD:')
+                    obj.bd{1,bd} = msh{2,1}{1,i}(4:end);
+                    if obj.dim == 2
+                        obj.bd{2,bd} = msh{2,3}{2,1}(msh{2,3}{2,1}(:,1)==msh{2,1}{2,i},2:end);
+                    end
+                    if obj.dim == 3
+                        obj.bd{2,bd} = msh{2,3}{2,2}(msh{2,3}{2,2}(:,1)==msh{2,1}{2,i},2:end);
+                    end
+                    bd = bd+1;
+                end
             end
-            switch obj.dim
-                case 2
-                    obj.type = 'tri';
-                    el = str2double(tri);
-                    el(isnan(el)) = [];
-                    el = reshape(el,8,[]);
-                    part = el(4,:);
-                    el = el(6:8,:);
-                    obj.el = el';
-                    for i=1:size(obj.parts,2)
-                        idx = part == obj.parts{4,i};
-                        j = 1:size(part,2);
-                        obj.parts{3,i} = j(idx);
-                    end
-                    nodes = str2double(nodes);
-                    nodes = nodes(2:3,:);
-                    nodes = reshape(nodes,2,1,[]);
-                    obj.co = ofem.matrixarray(nodes);
-                    line = str2double(line);
-                    line(isnan(line)) = [];
-                    line = reshape(line,7,[]);
-                    bds = line(4,:);
-                    line = line(6:7,:)';
-                    for i=1:size(obj.bd,2)
-                        idx = bds == obj.bd{3,i};
-                        obj.bd{2,i} = line(idx,:);
-                    end
-                    
-                case 3
-                    obj.type = 'tet';
-                    el = str2double(tet);
-                    el(isnan(el)) = [];
-                    el = reshape(el,9,[]);
-                    part = el(4,:);
-                    el = el(6:9,:);
-                    obj.el = el';
-                    for i=1:size(obj.parts,2)
-                        idx = part == obj.parts{4,i};
-                        j = 1:size(part,2);
-                        obj.parts{3,i} = j(idx);
-                    end
-                    nodes = str2double(nodes);
-                    nodes = nodes(2:4,:);
-                    nodes = reshape(nodes,3,1,[]);
-                    obj.co = ofem.matrixarray(nodes);
-                    tri = str2double(tri);
-                    tri(isnan(tri)) = [];
-                    tri = reshape(tri,8,[]);
-                    bds = tri(4,:);
-                    tri = tri(6:8,:)';
-                    for i=1:size(obj.bd,2)
-                        idx = bds == obj.bd{3,i};
-                        obj.bd{2,i} = tri(idx,:);
-                    end
-            end
-                    
             
         end
         
@@ -1243,43 +1141,77 @@ classdef mesh < handle
                     %% edges
 
                 case 'tri'
+                    switch obj.filetype
+                        case 'inp'
                     %% triangles
-                    % sideset coding for 2D triangle structures by the
-                    % Abaqus inp file is as follows:
-                    % E1: 1, 2
-                    % E2: 2, 3
-                    % E3: 3, 1
-                    for i=1:Nss
-                        switch npere
-                            case 3
-                                %% first order mesh
-                                % 1 2 3
-                                faces{i} = [obj.el(ss{1,i}{2,1},[1 2]);... % E1
-                                            obj.el(ss{1,i}{2,2},[2 3]);... % E2
-                                            obj.el(ss{1,i}{2,3},[3 1])];   % E3
+                            % sideset coding for 2D triangle structures by the
+                            % Abaqus inp file is as follows:
+                            % E1: 1, 2
+                            % E2: 2, 3
+                            % E3: 3, 1
+                            for i=1:Nss
+                                switch npere
+                                    case 3
+                                        %% first order mesh
+                                        % 1 2 3
+                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2]);... % E1
+                                                    obj.el(ss{1,i}{2,2},[2 3]);... % E2
+                                                    obj.el(ss{1,i}{2,3},[3 1])];   % E3
 
-                            case 6
-                                %% second order mesh
-                                % 1 2 3 e12 e23 e31
-                                faces{i} = [obj.el(ss{1,i}{2,1},[1 2 4]);... % E1
-                                            obj.el(ss{1,i}{2,2},[2 3 5]);... % E2
-                                            obj.el(ss{1,i}{2,3},[3 1 6])];   % E3
+                                    case 6
+                                        %% second order mesh
+                                        % 1 2 3 e12 e23 e31
+                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2 4]);... % E1
+                                                    obj.el(ss{1,i}{2,2},[2 3 5]);... % E2
+                                                    obj.el(ss{1,i}{2,3},[3 1 6])];   % E3
 
-                        end
+                                end
 
-                        opp{i}   = [obj.el(ss{1,i}{2,1},3); ... % E1
-                                    obj.el(ss{1,i}{2,2},1); ... % E2
-                                    obj.el(ss{1,i}{2,3},2)];    % E3
+                                opp{i}   = [obj.el(ss{1,i}{2,1},3); ... % E1
+                                            obj.el(ss{1,i}{2,2},1); ... % E2
+                                            obj.el(ss{1,i}{2,3},2)];    % E3
 
-                        edges      = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
-                        meas{i}    = sqrt(dot(edges,edges,1));
-                        normals{i} = -edges.rot;
-                        
-                        % correct direction
-                        tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
-                        tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
+                                edges      = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
+                                meas{i}    = sqrt(dot(edges,edges,1));
+                                normals{i} = -edges.rot;
 
-                        normals{i} = normals{i}./(2*meas{i}.*tmp);
+                                % correct direction
+                                tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
+                                tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
+
+                                normals{i} = normals{i}./(2*meas{i}.*tmp);
+                            end
+                        case 'msh'
+                            for i=1:Nss
+                                switch npere
+                                    case 3
+                                        %% first order mesh
+                                        % 1 2 3
+                                        faces{i} = ss{i};
+
+                                    case 6
+                                        %% second order mesh
+                                        % 1 2 3 e12 e23 e31
+                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2 4]);... % E1
+                                                    obj.el(ss{1,i}{2,2},[2 3 5]);... % E2
+                                                    obj.el(ss{1,i}{2,3},[3 1 6])];   % E3
+
+                                end
+
+%                                 opp{i}   = [ss(:,3); ... % E1
+%                                             ss(:,1); ... % E2
+%                                             ss(:,2)];    % E3
+
+                                edges      = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
+                                meas{i}    = sqrt(dot(edges,edges,1));
+                                normals{i} = -edges.rot;
+
+                                % correct direction
+%                                 tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
+%                                 tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
+%  
+%                                 normals{i} = normals{i}./(2*meas{i}.*tmp);
+                            end
                     end
                             
                 case 'quad'
@@ -1288,48 +1220,84 @@ classdef mesh < handle
                           'Quadrilateral meshes not supported so far!');
                 case 'tet'
                     %% tets
-                    % sideset coding for 3D tetrahedral structures by
-                    % the Abaqus inp file is as follows:
-                    % S1: 1, 2, 3
-                    % S2: 1, 2, 4
-                    % S3: 2, 3, 4
-                    % S4: 1, 3, 4
-                    for i=1:Nss
-                        switch npere
-                            case 4
-                                %% first order mesh
-                                % 1 2 3 4
-                                faces{i} = [obj.el(ss{1,i}{2,1},[1 2 3]);... % S1
-                                            obj.el(ss{1,i}{2,2},[1 2 4]);... % S2
-                                            obj.el(ss{1,i}{2,3},[2 3 4]);... % S3
-                                            obj.el(ss{1,i}{2,4},[1 3 4])];   % S4
+                    switch obj.filetype
+                        case 'inp'
+                            % sideset coding for 3D tetrahedral structures by
+                            % the Abaqus inp file is as follows:
+                            % S1: 1, 2, 3
+                            % S2: 1, 2, 4
+                            % S3: 2, 3, 4
+                            % S4: 1, 3, 4
+                            for i=1:Nss
+                                switch npere
+                                    case 4
+                                        %% first order mesh
+                                        % 1 2 3 4
+                                        faces{i} = ss;
 
-                            case 10
-                                %% second order mesh
-                                % 1 2 3 4 e12 e13 e14 e23 e24 e34
-                                faces{i} = [obj.el(ss{1,i}{2,1},[1 2 3 5  8 6]);... % S1
-                                            obj.el(ss{1,i}{2,2},[1 2 4 5  9 7]);... % S2
-                                            obj.el(ss{1,i}{2,3},[2 3 4 8 10 9]);... % S3
-                                            obj.el(ss{1,i}{2,4},[1 3 4 6 10 7])];   % S4
+                                    case 10
+                                        %% second order mesh
+                                        % 1 2 3 4 e12 e13 e14 e23 e24 e34
+                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2 3 5  8 6]);... % S1
+                                                    obj.el(ss{1,i}{2,2},[1 2 4 5  9 7]);... % S2
+                                                    obj.el(ss{1,i}{2,3},[2 3 4 8 10 9]);... % S3
+                                                    obj.el(ss{1,i}{2,4},[1 3 4 6 10 7])];   % S4
 
-                        end
+                                end
 
-                        opp{i}   = [obj.el(ss{1,i}{2,1},4); ... % S1
-                                    obj.el(ss{1,i}{2,2},3); ... % S2
-                                    obj.el(ss{1,i}{2,3},1); ... % S3
-                                    obj.el(ss{1,i}{2,4},2)];    % S4
+                                opp{i}   = [ss(:,4); ... % S1
+                                            ss(:,3); ... % S2
+                                            ss(:,1); ... % S3
+                                            ss(:,2)];    % S4
 
-                        e1         = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
-                        e2         = obj.co(:,:,faces{i}(:,3))-obj.co(:,:,faces{i}(:,1));
-                        normals{i} = cross(e1,e2,1);
-                        meas{i}    = sqrt(dot(normals{i},normals{i},1))/2;
+                                e1         = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
+                                e2         = obj.co(:,:,faces{i}(:,3))-obj.co(:,:,faces{i}(:,1));
+                                normals{i} = cross(e1,e2,1);
+                                meas{i}    = sqrt(dot(normals{i},normals{i},1))/2;
 
-                        
-                        % correct direction
-                        tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
-                        tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
 
-                        normals{i} = normals{i}./(2*meas{i}.*tmp);
+                                % correct direction
+                                tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
+                                tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
+
+                                normals{i} = normals{i}./(2*meas{i}.*tmp);
+                            end
+                        case 'msh'
+
+                            for i=1:Nss
+                                switch npere
+                                    case 4
+                                        %% first order mesh
+                                        % 1 2 3 4
+                                        faces{i} = ss{i};
+
+                                    case 10
+                                        %% second order mesh
+                                        % 1 2 3 4 e12 e13 e14 e23 e24 e34
+                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2 3 5  8 6]);... % S1
+                                                    obj.el(ss{1,i}{2,2},[1 2 4 5  9 7]);... % S2
+                                                    obj.el(ss{1,i}{2,3},[2 3 4 8 10 9]);... % S3
+                                                    obj.el(ss{1,i}{2,4},[1 3 4 6 10 7])];   % S4
+
+                                end
+
+%                                 opp{i}   = [obj.el(ss{1,i}{2,1},4); ... % S1
+%                                             obj.el(ss{1,i}{2,2},3); ... % S2
+%                                             obj.el(ss{1,i}{2,3},1); ... % S3
+%                                             obj.el(ss{1,i}{2,4},2)];    % S4
+
+                                e1         = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
+                                e2         = obj.co(:,:,faces{i}(:,3))-obj.co(:,:,faces{i}(:,1));
+                                normals{i} = cross(e1,e2,1);
+                                meas{i}    = sqrt(dot(normals{i},normals{i},1))/2;
+
+
+                                % correct direction
+%                                 tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
+%                                 tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
+% 
+%                                 normals{i} = normals{i}./(2*meas{i}.*tmp);
+                            end
                     end
  
                 case 'hex'

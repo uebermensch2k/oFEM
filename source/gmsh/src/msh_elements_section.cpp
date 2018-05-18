@@ -32,12 +32,18 @@ namespace msh_n {
     mxArray *pkCell  = mxCreateCellArray(2,anDims);
 
     size_t nCurrSetLine=0,nCurrSetTri=0,nCurrSetTetra=0;
+	string line = "Line";
+	string tri = "Tri";
+	string tetra = "Tetra";
 
     for (size_t i=0; i<nSetsQuantity; ++i)
     {
 
-		if (m_akSetsLine.size() && m_akSetsTri[0].m_nLength)
+		if (m_akSetsLine.size() && m_akSetsLine[0].m_nLength)
 		{
+
+		  mxArray *pkNameMatrix = mxCreateString(line.c_str());
+	      mxSetCell(pkCell,0*2,pkNameMatrix);
 
 		  /* content of nodeset */
 		  mxArray *pkElemsMatrix = mxCreateNumericMatrix(0, 0, mxDOUBLE_CLASS, mxREAL);
@@ -54,6 +60,8 @@ namespace msh_n {
 
       if (m_akSetsTri.size() && m_akSetsTri[0].m_nLength)
       {
+		  mxArray *pkNameMatrix = mxCreateString(tri.c_str());
+	      mxSetCell(pkCell,1*2,pkNameMatrix);
 
         /* content of nodeset */
         mxArray *pkElemsMatrix = mxCreateNumericMatrix(0, 0, mxDOUBLE_CLASS, mxREAL);
@@ -70,6 +78,9 @@ namespace msh_n {
 
       if (m_akSetsTetra.size() && m_akSetsTetra[0].m_nLength)
       {
+		  mxArray *pkNameMatrix = mxCreateString(tetra.c_str());
+	      mxSetCell(pkCell,2*2,pkNameMatrix);
+
 
         /* content of nodeset */
         mxArray *pkElemsMatrix = mxCreateNumericMatrix(0, 0, mxDOUBLE_CLASS, mxREAL);
