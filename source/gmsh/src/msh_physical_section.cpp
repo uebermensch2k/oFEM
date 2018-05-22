@@ -7,6 +7,7 @@
 #include "msh_physical_section.hpp"
 #include "msh_utils.hpp"
 #include <algorithm>					// That's why we dont use namespace std!
+#include <memory.h>
 
 using namespace std;
 
