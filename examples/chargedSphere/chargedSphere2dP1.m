@@ -20,7 +20,7 @@ fprintf('done t=%f\n',t);
 fe=ofem.finiteelement.P1;
 
 
-%% define equation type in oFEM 
+%% define equation type in oFEM
 op=ofem.elliptic(mesh,fe,ofem.gaussianquadrature(mesh,fe));
 
 
@@ -65,7 +65,7 @@ E = -op.gradu(u);
 mesh.export_UCD(fullfile(pwd,'chargedSphere'), 'sphere', {'U', u, 'V'}, ...
                 {'E', E,'V/m' });
 
-            
+
 %% plot solution
 % figure;
 % s=tetramesh(mesh.el,double(permute(mesh.co,[3,1,2])),sum(reshape(u(mesh.el),[],mesh.dim+1),2)/(mesh.dim+1));

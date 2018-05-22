@@ -15,7 +15,7 @@ fprintf('done t=%f\n',t);
 %% set constants
 freq  = 1e6;
 mu    = 1*mesh.mu0;
-ka_cu = 7e5;
+ka_cu = 5.8e7;
 omega = 2*pi*freq;
 
 
@@ -38,7 +38,8 @@ fprintf('Assembling stiffness matrix (oFEM) ... \n');
 opt.S = 1;
 opt.A = 1/mu;
 opt.M = 1;
-opt.c = {0,ka_cu,ka_cu};
+
+opt.c = {0,ka_cu,ka_cu,0};
 opt.force = @(x) current(x);
 opt.dirichlet = struct('idx',1,'f',0);
 [asm,info,~]=eq.assemble(opt);
@@ -67,24 +68,24 @@ cnt=1;
 %% post processing
 ka = zeros(size(co,1),1);
 ka(unique([mesh.el(mesh.parts{3,2},:); mesh.el(mesh.parts{3,3},:)])) = ka_cu;
-    
+
 for t=0:2/(freq*50):2/freq
-    
+
     u_t = u*exp(1i*omega*t);
 
     eddy_current = 1i*omega*ka.*u;
 
     stamped_current = zeros( size(co,1), 1 );
     stamped_current(unique(mesh.el(mesh.parts{3,2},:))) = 1e-4/(pi*0.001^2);
-    
+
     total_current = (stamped_current + eddy_current)*exp(1i*omega*t);
-    
+
     B = eq.gradu(real(u_t)); % B = rot A
     B = [B(:,2),-B(:,1)];
-    
+
     B_ABS = sqrt(dot(B,B,2));
-    
-    
+
+
     mesh.export_UCD(fullfile(pwd,'eddy_current'),...
                      strcat('export',num2str(cnt)),...
                      {'Az';1e12*real(u_t);'V'},...
