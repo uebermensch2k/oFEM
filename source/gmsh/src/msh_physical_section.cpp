@@ -6,6 +6,8 @@
 
 #include "msh_physical_section.hpp"
 #include "msh_utils.hpp"
+#include <algorithm>
+#include <memory.h>
 
 using namespace std;
 
