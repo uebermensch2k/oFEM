@@ -6,6 +6,7 @@
 
 #include "msh_physical_section.hpp"
 #include "msh_utils.hpp"
+#include <algorithm>					// That's why we dont use namespace std!
 
 using namespace std;
 
