@@ -675,7 +675,7 @@ classdef elliptic < handle
                 for i=1:Np
                     pIdx     = obj.mesh.parts{3,i};
                     elemsLoc = obj.mesh.el(pIdx,:);
-                    detDLoc  = (detD(:,:,pIdx));
+                    detDLoc  = detD(:,:,pIdx);
                     DinvTLoc = DinvT(:,:,pIdx);
                     
                     %% handle stiffness matrix
