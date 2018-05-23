@@ -26,9 +26,7 @@ fe=ofem.finiteelement.P1;
 
 
 %% define equation type in oFEM 
-qr = ofem.gaussianquadrature(mesh,fe);
-
-op=ofem.elliptic(mesh,fe,qr);
+op=ofem.elliptic(mesh,fe,ofem.gaussianquadrature(mesh,fe));
 
 
 %% oFEM assmble method
@@ -41,8 +39,6 @@ opt.S            = 1;
 opt.A            = {eps1_r*mesh.eps0,eps2_r*mesh.eps0,eps3_r*mesh.eps0};
 opt.dirichlet{1} = struct('idx',1,'f',U_1);
 opt.dirichlet{2} = struct('idx',2,'f',U_2);
-%opt.neumann{1}   = struct('idx',2,'f',1e-10);
-%opt.neumann{2}   = struct('idx',1,'f',U_1);
 [asm,info,aux]     = op.assemble(opt);
 
 fprintf('done t=%f\n',info.time2assemble);
