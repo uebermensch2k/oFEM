@@ -104,8 +104,8 @@ t=toc;
 fprintf('done t=%f\n',t);
  
 %% export 
-% mesh.export_UCD(fullfile(pwd,'solution'), 'pipe', {'U',u, 'm'}, ...
-%               {'E', E(:,[1,5,9,6,3,2]), '[]'}, {'S', s{1}', 'GPa'});
+%  mesh.export_UCD(fullfile(pwd,'solution'), 'pipe', {'U',u, 'm'}, ...
+%                {'E', E(:,[1,5,9,6,3,2]), '[]'}, {'S', s{1}', 'GPa'});
 
 
             

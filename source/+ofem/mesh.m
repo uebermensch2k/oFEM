@@ -76,6 +76,8 @@ classdef mesh < handle
         %   'quad' : The elements are convex quadrilateral
         %   'hex'  : The elements are convex hexahedrons
         type;
+        
+        filetype;
 
         % nodes_per_elem contains the number of nodes a single element is
         % build up from. This information is needed as, e.g., when
@@ -602,6 +604,7 @@ classdef mesh < handle
 
             tic
             inp=inp_read_file(inp_file_name);
+            obj.filetype = 'inp';
             info.time.file_read=toc;
 
             % inp is a cell array of the following structure
@@ -739,6 +742,75 @@ classdef mesh < handle
             info.time.post_proccess=toc;
 
             clear inp;
+        end
+        
+        function load_from_msh(obj,msh_file_name)
+            %LOAD_FROM_MSH loads mesh data from a .msh file
+            [filepath,filename,fileext] = fileparts(msh_file_name);
+            if fileext==""
+                msh_file_name = fullfile(char(filepath),char(strcat(filename,".msh")));
+            end
+            if filepath==""
+                msh_file_name = fullfile(pwd,char(msh_file_name));
+            end
+            
+            % check if msh file exists
+            if ~exist(msh_file_name,'file') % for whatever reason this fails on the cluster
+                error('ofem:mesh:FileNotFound','inp-file "%s" not found.\n',inp_file_name);
+            end
+            
+            tic
+            msh=msh_read_file(msh_file_name);
+            obj.filetype = 'msh';
+            info.time.file_read=toc;
+            
+            % msh is a 2x3 cell array
+            % {2,1} contains the physicalnames defined in gmsh
+            % {2,2} contains the coordinates
+            % {2,3} contains the elements
+            
+            if(isempty(msh{2,3}{2,3}))
+                msh{2,2}{2,1}(:,3) = [];
+                obj.co = ofem.matrixarray(reshape(msh{2,2}{2,1}',2,1,[]));
+                obj.dim = 2;
+                obj.type = 'tri';
+                obj.el = msh{2,3}{2,2}(:,2:4);
+            else
+                obj.co = ofem.matrixarray(reshape(msh{2,2}{2,1}',3,1,[]));
+                obj.dim = 3;
+                obj.type = 'tet';
+                obj.el = msh{2,3}{2,3}(:,2:5);
+            end
+            obj.Nco = size(obj.co,3);
+            
+            part = 1;
+            bd = 1;
+            Idx = 1:size(obj.el,1);
+            for i=1:size(msh{2,1},2)
+                if startsWith(msh{2,1}{1,i},'M:')
+                    obj.parts{1,part} = msh{2,1}{1,i}(3:end);
+                    if obj.dim == 2
+                        obj.parts{3,part} = Idx(msh{2,3}{2,2}(:,1)==msh{2,1}{2,i});
+                        obj.parts{2,part} = 1; %Material extension
+                    end
+                    if obj.dim == 3
+                        obj.parts{3,part} = Idx(msh{2,3}{2,3}(:,1)==msh{2,1}{2,i});
+                        obj.parts{2,part} = 1; %Material extension
+                    end
+                    part = part+1;
+                end
+                if startsWith(msh{2,1}{1,i},'BD:')
+                    obj.bd{1,bd} = msh{2,1}{1,i}(4:end);
+                    if obj.dim == 2
+                        obj.bd{2,bd} = msh{2,3}{2,1}(msh{2,3}{2,1}(:,1)==msh{2,1}{2,i},2:end);
+                    end
+                    if obj.dim == 3
+                        obj.bd{2,bd} = msh{2,3}{2,2}(msh{2,3}{2,2}(:,1)==msh{2,1}{2,i},2:end);
+                    end
+                    bd = bd+1;
+                end
+            end
+            
         end
         
         %%
@@ -962,84 +1034,89 @@ classdef mesh < handle
             Nss   = size(ss,2);
             nID   = cell(Nss,1);
             npere = size(obj.el,2);
-            switch obj.type
-                case 'edge'
-                    %% edges
+            switch obj.filetype
+                case 'inp'
+                    switch obj.type
+                        case 'edge'
+                            %% edges
 
-                case 'tri'
-                    %% triangles
-                    % sideset coding for 2D triangle structures by the
-                    % Abaqus inp file is as follows:
-                    % E1: 1,2
-                    % E2: 2,3
-                    % E3: 3,1
-                    switch npere
-                        case 6
-                            %% second order mesh
-                            % 1 2 3 e12 e23 e31
-                            for i=1:Nss
-                                nID{i}=unique([obj.el(ss{1,i}{2,1},[1,4,2]); ...
-                                               obj.el(ss{1,i}{2,2},[2,5,3]); ...
-                                               obj.el(ss{1,i}{2,3},[3,6,1])],'stable');
+                        case 'tri'
+                            %% triangles
+                            % sideset coding for 2D triangle structures by the
+                            % Abaqus inp file is as follows:
+                            % E1: 1,2
+                            % E2: 2,3
+                            % E3: 3,1
+                            switch npere
+                                case 6
+                                    %% second order mesh
+                                    % 1 2 3 e12 e23 e31
+                                    for i=1:Nss
+                                        nID{i}=unique([obj.el(ss{1,i}{2,1},[1,4,2]); ...
+                                                       obj.el(ss{1,i}{2,2},[2,5,3]); ...
+                                                       obj.el(ss{1,i}{2,3},[3,6,1])],'stable');
+                                    end
+                                case 3
+                                    %% first order mesh
+                                    % 1 2 3
+                                    for i=1:Nss
+                                        nID{i}=unique([obj.el(ss{1,i}{2,1},[1,2]); ...
+                                                       obj.el(ss{1,i}{2,2},[2,3]);...
+                                                       obj.el(ss{1,i}{2,3},[3,1])],'stable');
+                                    end
+                                otherwise
+                                    error('ofem:mesh:Unspecified',...
+                                          'Triangle expected but the number of elemnts does not fit!\nThe number found is %d',...
+                                          npere);
                             end
-                        case 3
-                            %% first order mesh
-                            % 1 2 3
-                            for i=1:Nss
-                                nID{i}=unique([obj.el(ss{1,i}{2,1},[1,2]); ...
-                                               obj.el(ss{1,i}{2,2},[2,3]);...
-                                               obj.el(ss{1,i}{2,3},[3,1])],'stable');
+
+                        case 'quad'
+                            %% quadrilateral
+                            error('ofem:mesh:InvalidMesh',...
+                                'Quadrilateral meshes not supported so far!');
+                        case 'tet'
+                            %% tets
+                            % sideset coding for 3D tetrahedral structures by
+                            % the Abaqus inp file is as follows:
+                            % S1: 1, 2, 3
+                            % S2: 1, 2, 4
+                            % S3: 2, 3, 4
+                            % S4: 1, 3, 4
+                            switch npere
+                                case 10
+                                    %% second order mesh
+                                    % 1 2 3 4 e12 e13 e14 e23 e24 e34
+                                    for i=1:Nss
+                                        nID{i}=unique([obj.el(ss{1,i}{2,1},[1,5,2, 8,3,6]); ...
+                                                       obj.el(ss{1,i}{2,2},[1,5,2, 9,4,7]);...
+                                                       obj.el(ss{1,i}{2,3},[2,8,3,10,4,9]);
+                                                       obj.el(ss{1,i}{2,4},[1,6,3,10,4,7])],'stable');
+                                    end
+                                case 4
+                                    %% first order mesh
+                                    % 1 2 3 4
+                                    for i=1:Nss
+                                        nID{i}=unique([obj.el(ss{1,i}{2,1},[1,2,3]); ...
+                                                       obj.el(ss{1,i}{2,2},[1,2,4]);...
+                                                       obj.el(ss{1,i}{2,3},[2,3,4]);
+                                                       obj.el(ss{1,i}{2,4},[1,3,4])],'stable');
+                                    end
+                                otherwise
+                                    error('ofem:mesh:Unspecified',...
+                                          'Tetrahedron expected but the number of elemnts does not fit!\nThe number found is %d',...
+                                        npere);
                             end
+
+                        case 'hex'
+                            %% hexahedron
+                            error('ofem:mesh:InvalidMesh',...
+                                  'Hexahedral meshes not supported so far!');
                         otherwise
                             error('ofem:mesh:Unspecified',...
-                                  'Triangle expected but the number of elemnts does not fit!\nThe number found is %d',...
-                                  npere);
+                                  'Unspecified error found');
                     end
-                            
-                case 'quad'
-                    %% quadrilateral
-                    error('ofem:mesh:InvalidMesh',...
-                        'Quadrilateral meshes not supported so far!');
-                case 'tet'
-                    %% tets
-                    % sideset coding for 3D tetrahedral structures by
-                    % the Abaqus inp file is as follows:
-                    % S1: 1, 2, 3
-                    % S2: 1, 2, 4
-                    % S3: 2, 3, 4
-                    % S4: 1, 3, 4
-                    switch npere
-                        case 10
-                            %% second order mesh
-                            % 1 2 3 4 e12 e13 e14 e23 e24 e34
-                            for i=1:Nss
-                                nID{i}=unique([obj.el(ss{1,i}{2,1},[1,5,2, 8,3,6]); ...
-                                               obj.el(ss{1,i}{2,2},[1,5,2, 9,4,7]);...
-                                               obj.el(ss{1,i}{2,3},[2,8,3,10,4,9]);
-                                               obj.el(ss{1,i}{2,4},[1,6,3,10,4,7])],'stable');
-                            end
-                        case 4
-                            %% first order mesh
-                            % 1 2 3 4
-                            for i=1:Nss
-                                nID{i}=unique([obj.el(ss{1,i}{2,1},[1,2,3]); ...
-                                               obj.el(ss{1,i}{2,2},[1,2,4]);...
-                                               obj.el(ss{1,i}{2,3},[2,3,4]);
-                                               obj.el(ss{1,i}{2,4},[1,3,4])],'stable');
-                            end
-                        otherwise
-                            error('ofem:mesh:Unspecified',...
-                                  'Tetrahedron expected but the number of elemnts does not fit!\nThe number found is %d',...
-                                npere);
-                    end
- 
-                case 'hex'
-                    %% hexahedron
-                    error('ofem:mesh:InvalidMesh',...
-                          'Hexahedral meshes not supported so far!');
-                otherwise
-                    error('ofem:mesh:Unspecified',...
-                          'Unspecified error found');
+                case 'msh'
+                    nID{1} = unique(obj.bd{2,idx}(:));
             end
         end
         
@@ -1089,43 +1166,77 @@ classdef mesh < handle
                     %% edges
 
                 case 'tri'
+                    switch obj.filetype
+                        case 'inp'
                     %% triangles
-                    % sideset coding for 2D triangle structures by the
-                    % Abaqus inp file is as follows:
-                    % E1: 1, 2
-                    % E2: 2, 3
-                    % E3: 3, 1
-                    for i=1:Nss
-                        switch npere
-                            case 3
-                                %% first order mesh
-                                % 1 2 3
-                                faces{i} = [obj.el(ss{1,i}{2,1},[1 2]);... % E1
-                                            obj.el(ss{1,i}{2,2},[2 3]);... % E2
-                                            obj.el(ss{1,i}{2,3},[3 1])];   % E3
+                            % sideset coding for 2D triangle structures by the
+                            % Abaqus inp file is as follows:
+                            % E1: 1, 2
+                            % E2: 2, 3
+                            % E3: 3, 1
+                            for i=1:Nss
+                                switch npere
+                                    case 3
+                                        %% first order mesh
+                                        % 1 2 3
+                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2]);... % E1
+                                                    obj.el(ss{1,i}{2,2},[2 3]);... % E2
+                                                    obj.el(ss{1,i}{2,3},[3 1])];   % E3
 
-                            case 6
-                                %% second order mesh
-                                % 1 2 3 e12 e23 e31
-                                faces{i} = [obj.el(ss{1,i}{2,1},[1 2 4]);... % E1
-                                            obj.el(ss{1,i}{2,2},[2 3 5]);... % E2
-                                            obj.el(ss{1,i}{2,3},[3 1 6])];   % E3
+                                    case 6
+                                        %% second order mesh
+                                        % 1 2 3 e12 e23 e31
+                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2 4]);... % E1
+                                                    obj.el(ss{1,i}{2,2},[2 3 5]);... % E2
+                                                    obj.el(ss{1,i}{2,3},[3 1 6])];   % E3
 
-                        end
+                                end
 
-                        opp{i}   = [obj.el(ss{1,i}{2,1},3); ... % E1
-                                    obj.el(ss{1,i}{2,2},1); ... % E2
-                                    obj.el(ss{1,i}{2,3},2)];    % E3
+                                opp{i}   = [obj.el(ss{1,i}{2,1},3); ... % E1
+                                            obj.el(ss{1,i}{2,2},1); ... % E2
+                                            obj.el(ss{1,i}{2,3},2)];    % E3
 
-                        edges      = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
-                        meas{i}    = sqrt(dot(edges,edges,1));
-                        normals{i} = -edges.rot;
-                        
-                        % correct direction
-                        tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
-                        tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
+                                edges      = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
+                                meas{i}    = sqrt(dot(edges,edges,1));
+                                normals{i} = -edges.rot;
 
-                        normals{i} = normals{i}./(2*meas{i}.*tmp);
+                                % correct direction
+                                tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
+                                tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
+
+                                normals{i} = normals{i}./(2*meas{i}.*tmp);
+                            end
+                        case 'msh'
+                            for i=1:Nss
+                                switch npere
+                                    case 3
+                                        %% first order mesh
+                                        % 1 2 3
+                                        faces{i} = ss{i};
+
+                                    case 6
+                                        %% second order mesh
+                                        % 1 2 3 e12 e23 e31
+                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2 4]);... % E1
+                                                    obj.el(ss{1,i}{2,2},[2 3 5]);... % E2
+                                                    obj.el(ss{1,i}{2,3},[3 1 6])];   % E3
+
+                                end
+
+%                                 opp{i}   = [ss(:,3); ... % E1
+%                                             ss(:,1); ... % E2
+%                                             ss(:,2)];    % E3
+
+                                edges      = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
+                                meas{i}    = sqrt(dot(edges,edges,1));
+                                normals{i} = -edges.rot;
+
+                                % correct direction
+%                                 tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
+%                                 tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
+%  
+%                                 normals{i} = normals{i}./(2*meas{i}.*tmp);
+                            end
                     end
                             
                 case 'quad'
@@ -1134,48 +1245,84 @@ classdef mesh < handle
                           'Quadrilateral meshes not supported so far!');
                 case 'tet'
                     %% tets
-                    % sideset coding for 3D tetrahedral structures by
-                    % the Abaqus inp file is as follows:
-                    % S1: 1, 2, 3
-                    % S2: 1, 2, 4
-                    % S3: 2, 3, 4
-                    % S4: 1, 3, 4
-                    for i=1:Nss
-                        switch npere
-                            case 4
-                                %% first order mesh
-                                % 1 2 3 4
-                                faces{i} = [obj.el(ss{1,i}{2,1},[1 2 3]);... % S1
-                                            obj.el(ss{1,i}{2,2},[1 2 4]);... % S2
-                                            obj.el(ss{1,i}{2,3},[2 3 4]);... % S3
-                                            obj.el(ss{1,i}{2,4},[1 3 4])];   % S4
+                    switch obj.filetype
+                        case 'inp'
+                            % sideset coding for 3D tetrahedral structures by
+                            % the Abaqus inp file is as follows:
+                            % S1: 1, 2, 3
+                            % S2: 1, 2, 4
+                            % S3: 2, 3, 4
+                            % S4: 1, 3, 4
+                            for i=1:Nss
+                                switch npere
+                                    case 4
+                                        %% first order mesh
+                                        % 1 2 3 4
+                                        faces{i} = ss;
 
-                            case 10
-                                %% second order mesh
-                                % 1 2 3 4 e12 e13 e14 e23 e24 e34
-                                faces{i} = [obj.el(ss{1,i}{2,1},[1 2 3 5  8 6]);... % S1
-                                            obj.el(ss{1,i}{2,2},[1 2 4 5  9 7]);... % S2
-                                            obj.el(ss{1,i}{2,3},[2 3 4 8 10 9]);... % S3
-                                            obj.el(ss{1,i}{2,4},[1 3 4 6 10 7])];   % S4
+                                    case 10
+                                        %% second order mesh
+                                        % 1 2 3 4 e12 e13 e14 e23 e24 e34
+                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2 3 5  8 6]);... % S1
+                                                    obj.el(ss{1,i}{2,2},[1 2 4 5  9 7]);... % S2
+                                                    obj.el(ss{1,i}{2,3},[2 3 4 8 10 9]);... % S3
+                                                    obj.el(ss{1,i}{2,4},[1 3 4 6 10 7])];   % S4
 
-                        end
+                                end
 
-                        opp{i}   = [obj.el(ss{1,i}{2,1},4); ... % S1
-                                    obj.el(ss{1,i}{2,2},3); ... % S2
-                                    obj.el(ss{1,i}{2,3},1); ... % S3
-                                    obj.el(ss{1,i}{2,4},2)];    % S4
+                                opp{i}   = [ss(:,4); ... % S1
+                                            ss(:,3); ... % S2
+                                            ss(:,1); ... % S3
+                                            ss(:,2)];    % S4
 
-                        e1         = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
-                        e2         = obj.co(:,:,faces{i}(:,3))-obj.co(:,:,faces{i}(:,1));
-                        normals{i} = cross(e1,e2,1);
-                        meas{i}    = sqrt(dot(normals{i},normals{i},1))/2;
+                                e1         = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
+                                e2         = obj.co(:,:,faces{i}(:,3))-obj.co(:,:,faces{i}(:,1));
+                                normals{i} = cross(e1,e2,1);
+                                meas{i}    = sqrt(dot(normals{i},normals{i},1))/2;
 
-                        
-                        % correct direction
-                        tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
-                        tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
 
-                        normals{i} = normals{i}./(2*meas{i}.*tmp);
+                                % correct direction
+                                tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
+                                tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
+
+                                normals{i} = normals{i}./(2*meas{i}.*tmp);
+                            end
+                        case 'msh'
+
+                            for i=1:Nss
+                                switch npere
+                                    case 4
+                                        %% first order mesh
+                                        % 1 2 3 4
+                                        faces{i} = ss{i};
+
+                                    case 10
+                                        %% second order mesh
+                                        % 1 2 3 4 e12 e13 e14 e23 e24 e34
+                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2 3 5  8 6]);... % S1
+                                                    obj.el(ss{1,i}{2,2},[1 2 4 5  9 7]);... % S2
+                                                    obj.el(ss{1,i}{2,3},[2 3 4 8 10 9]);... % S3
+                                                    obj.el(ss{1,i}{2,4},[1 3 4 6 10 7])];   % S4
+
+                                end
+
+%                                 opp{i}   = [obj.el(ss{1,i}{2,1},4); ... % S1
+%                                             obj.el(ss{1,i}{2,2},3); ... % S2
+%                                             obj.el(ss{1,i}{2,3},1); ... % S3
+%                                             obj.el(ss{1,i}{2,4},2)];    % S4
+
+                                e1         = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
+                                e2         = obj.co(:,:,faces{i}(:,3))-obj.co(:,:,faces{i}(:,1));
+                                normals{i} = cross(e1,e2,1);
+                                meas{i}    = sqrt(dot(normals{i},normals{i},1))/2;
+
+
+                                % correct direction
+%                                 tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
+%                                 tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
+% 
+%                                 normals{i} = normals{i}./(2*meas{i}.*tmp);
+                            end
                     end
  
                 case 'hex'
