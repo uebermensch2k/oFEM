@@ -1120,19 +1120,14 @@ classdef mesh < handle
             end
         end
         
-        %% Get dirichlet edges for edge based DOFs
-        function eID=dirichletEdges(obj,idx)
-            %DIRICHLETEDGES returns dirichlet edges for the specified sidesets
+        %% get the Dirichlet boundary edges
+        function [eID] = dirichletEdges(obj,idx)
+            %DIRICHLETEDGES returns the edges for edge based dirichlet problems.
             ss    = obj.bd(2,idx);
             Nss   = size(ss,2);
             eID   = cell(Nss,1);
-            switch obj.type
-                case 'tet'
-                    for i=1:Nss
-                        eID{i} = unique([obj.el2ed(ss{1,i}{2,1},[1,2,4]);...
-                                      obj.el2ed(ss{1,i}{2,2},[1,3,5]);...
-                                      obj.el2ed(ss{1,i}{2,3},[4,5,6]);...
-                                      obj.el2ed(ss{1,i}{2,4},[2,3,6])]);
+            switch obj.filetype
+                case 'inp'
                     switch obj.type
                         case 'tet'
                             for i=1:Nss
