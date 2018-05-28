@@ -1,22 +1,8 @@
-
-
-classdef elliptic < handle
-    % ofem.elliptic defines a general scalar elliptic partial differential
-    % equation, i.e., a PDE of the following type:
-    %
-    %    -div(A(x)\nabla u(x))+b(x)\cdot\nabla u(x)+c(x)u(x)=f(x),
-    %
-    % with matrix-valued function A, a vector-valued function b and a
-    % scalar-valued function c. f is the applied volume force. This
-    % operator is able to handle three types of boundary conditions:
-    %
-    %   - Dirichlet: u = g_D
-    %   - Neumann  : n\cdot (A \nabla u) = g_N
-    %   - Robin    : n\cdot (A \nabla u)+\alpha u = g_R
-    %
-    % See also ofem.elliptic.assemble
-    %
-
+classdef CurlCurl < handle
+    % ofem.CurlCurl implements the assemble routines and the interface for
+    % solving an electromagnetic problem of the form
+    
+    
     properties(Access=protected)
         mesh; % The mesh
         fe  ; % The finite element
@@ -26,7 +12,7 @@ classdef elliptic < handle
     methods(Access=protected,Static)
 
         %%
-        function S=stiffness(A,DinvT,detD,dphi,w,l,el,co)
+        function S=stiffness(A,sign,Dk,DinvT,detD,dphi,w,l,el,ed,el2ed)
         %stiffness returns the stiffness matrix.
         %
         % S=stiffness(DinvT,detD,dphi,w,el,co) returns the stiffness matrix
@@ -47,43 +33,48 @@ classdef elliptic < handle
         % See also ofem.mesh.jacobian_data, ofem.finiteelement.phi,
         % ofem.finiteelement.dphi, ofem.quassianquadrature.data
         %
-            Ns = size(dphi,1);
-            Nq = size(w   ,1);
+            Ns = size(dphi,2);
+%             Nq = size(w   ,1);
             Ne = size(el  ,1);
-            Nc = size(co  ,3);
-
+            Nc = size(ed,1);
+            
             S=ofem.matrixarray(zeros(Ns,Ns,Ne));
 
-            if isa(A,'function_handle')
-                Nl   = size(l  ,2); % number of barycentric coordinates
-                elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+%             S=ofem.matrixarray(zeros(Ns,Ns,Ne));
 
-                for q=1:Nq
-                    X = elco*(l(q,:)');
-                    globdphi = DinvT*dphi(:,:,q)';
-                    S=S+globdphi'*(w(q)*A(X))*globdphi;
-                end
-            else
-                for q=1:Nq
-                    globdphi = DinvT*dphi(:,:,q)';
-                    S=S+globdphi'*(w(q)*A)*globdphi;
-                end
-            end
+%             if isa(A,'function_handle')
+%                 Nl   = size(l  ,2); % number of barycentric coordinates
+%                 elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+%                 
+%                 for q=1:Nq
+%                     X = elco*(l(q,:)');
+%                     globdphi = DinvT*dphi(:,:,q)';
+%                     S=S+globdphi'*(w(q)*A(X))*globdphi;
+%                 end
+%             else
+%                 for q=1:Nq
+%                     globdphi = DinvT*dphi(:,:,q)';
+%                     S=S+globdphi'*(w(q)*A)*globdphi;
+%                 end
+%             end
+
+            dphii = Dk*(dphi.*sign);
+            S = S+(dphii'*dphii);
 
             
 
-            S=S*detD;
+            S=w*A*S*(1./detD);
 
             J = repmat(1:Ns,Ns,1);
-            I = el(:,J')';
-            J = el(:,J )';
+            I = el2ed(:,J')';
+            J = el2ed(:,J )';
 
             S = sparse(I(:),J(:),S(:),Nc,Nc);
         end
 
 
         %%
-        function D=damping(b,DinvT,detD,phi,dphi,w,l,el,co)
+        function D=damping(b,sign,DinvT,detD,phi,dphi,w,l,el,co)
         %DAMPING returns the damping matrix.
         %
         % D=damping(b,DinvT,detD,phi,dphi,w,el,co) returns the damping
@@ -139,7 +130,7 @@ classdef elliptic < handle
 
 
         %%
-        function M=mass(c,detD,pipj,el,co)
+        function M=mass(c,sign,DinvT,detD,phi,w,el,ed,el2ed)
         %MASS returns the mass matrix.
         %
         % M=mass(detD,pipj,el,co) returns the mass matrix for the local set
@@ -190,21 +181,23 @@ classdef elliptic < handle
 %             M = sparse(I(:),J(:),M(:),Nc,Nc);
 
 
-            Ns = size(pipj,1);
-            Nc = size(co  ,3);
+            Ns = size(phi,2);
+            Nc = size(ed,1);
 
-            M = (c*pipj)*detD;
+            phii = DinvT*(phi.*sign);
+
+            M = w*c*detD*(phii'*phii);
 
             J = repmat(1:Ns,Ns,1);
-            I = el(:,J')';
-            J = el(:,J )';
+            I = el2ed(:,J')';
+            J = el2ed(:,J )';
 
             M=sparse(I(:),J(:),M(:),Nc,Nc);
         end
 
 
         %%
-        function b=volume_force(detD,phi,w,l,f,el,co)
+        function b=volume_force(sign,detD,DinvT,phi,w,l,f,el,co,el2ed,Nc)
         %volume_force returns the volume force part of the load vector.
         %
         % b=volume_force(detD,phi,w,l,f,el,co) computes the force in
@@ -217,28 +210,49 @@ classdef elliptic < handle
         % See also ofem.mesh.jacobian_data, ofem.finiteelement.phi,
         % ofem.quassianquadrature.data
         %
-            Nl   = size(l  ,2); % number of barycentric coordinates
-            Nc   = size(co ,3);
+            l = [1/4,1/4,1/4,1/4]';
+            Nl   = size(l  ,1); % number of barycentric coordinates
             Nq   = size(w  ,1);
-            Ns   = size(phi,1);
             Ne   = size(el ,1);
-
-            % elco*l gives global quadrature points => eval there
+            
+            % eval at element centers
             elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+            
 
-            F    = ofem.matrixarray(zeros(1,Ns,Ne));
+            F    = ofem.matrixarray(zeros(1,1,Ne));
 
-            for q=1:Nq
-                X = elco*(l(q,:)');
-                
-                F = F + f(X)*(w(q)*phi(:,q)');
+            % how to get the data from the element to the edges
+            if(isa(f,'function_handle'))
+                for q=1:Nq
+                    X = elco*l;
+                    A = f(X);
+                    if ~isempty(A)
+                        F = F + (w*(DinvT*phi).*sign)'*A;
+                    end
+                end
+            else
+                el = repelem(el,1,3);
+                el = el*3;
+                vec = [-2,-1,0];
+                vec = repmat(vec,1,4);
+                el = el+vec;
+                f = reshape(f',[],1);
+                f = f(el);
+                Jx = f(:,[1,4,7,10])*l;
+                Jy = f(:,[2,5,8,11])*l;
+                Jz = f(:,[3,6,9,12])*l;
+                f = [Jx,Jy,Jz];
+                f = reshape(f',3,1,[]);
+                A = ofem.matrixarray(f);
+                F = F + (w*(DinvT*phi).*sign)'*A;
             end
 
-%             F = permute(double(F*detD),[3,2,1]);
+            %F = permute(double(F*detD),[3,2,1]);
+            %F = repmat(F,6,1,1);
 
             F  = F*detD;
-            el = el';
-            b  = sparse(el(:),1,F(:),Nc,1);
+            el2ed = el2ed';
+            b  = sparse(el2ed(:),1,F(:),Nc,1);
         end
 
 
@@ -282,21 +296,21 @@ classdef elliptic < handle
 
 
         %%
-        function b=dirichlet(d,nodes,co)
+        function b=dirichlet(d,edges,ed,co)
         %dirichlet returns the Dirichlet-originated part of the load vector.
         %
         % b=dirichlet(el,co) computes the Dirichlet-originated vector at
         % the specified faces.
         %
-            Nc  = size(co ,3);
-            D   = d(co(:,:,nodes));
-            b   = sparse(nodes,1,D(:),Nc,1);
+            Ne  = size(ed ,1);
+            D   = d((co(:,:,ed(edges,1))+co(:,:,ed(edges,2)))./2);
+            b   = sparse(edges,1,D(:),Ne,1);
         end
     end
 
     methods
         %%
-        function obj=elliptic(mesh,fe,qr)
+        function obj=CurlCurl(mesh,fe,qr)
         %elliptic construct the object
         %
         % elliptic(mesh,fe,qr) construct the object from a ofem.mesh mesh,
@@ -311,6 +325,7 @@ classdef elliptic < handle
             end
 
             obj.mesh = mesh;
+            obj.mesh.create_edges();
             obj.fe   = fe;
             obj.qr   = qr;
         end
@@ -391,7 +406,7 @@ classdef elliptic < handle
         % isotropic with specified characteristic.
         %
             Np      = size(obj.mesh.parts,2);
-            Nc      = size(obj.mesh.co   ,3);
+            Nc      = size(obj.mesh.ed,1);
             intvol  = 0;
             intface = 0;
             intdiri = 0;
@@ -503,7 +518,7 @@ classdef elliptic < handle
 
                     Ndiri         = numel(opt.dirichlet);
                     aux.dirichlet = cell(Ndiri,1);
-                    aux.dirichletNodes = cell(Ndiri,1);
+                    aux.dirichletEdges = cell(Ndiri,1);
                 end
 
                 %% Neumann boundary, pressure
@@ -665,11 +680,15 @@ classdef elliptic < handle
                 [w,l] = obj.qr.data(0);
 
                 % shape functions related stuff
-                pipj  = obj.fe.phiiphij(obj.mesh.dim);
+                %pipj  = obj.fe.phiiphij(obj.mesh.dim);
                 phi   = obj.fe.phi(l);
                 dphi  = obj.fe.dphi(l);
-                [DinvT,detD] = obj.mesh.jacobiandata;
+                [DinvT,detD,Dk] = obj.mesh.jacobiandata;
+                detD = abs(detD);
                 aux.detD    =detD;
+                sign = reshape(obj.mesh.el2edsign',1,6,[]);
+                sign = repmat(sign,3,1,1);
+                sign = ofem.matrixarray(sign);
 
                 % perform assembly
                 for i=1:Np
@@ -677,41 +696,44 @@ classdef elliptic < handle
                     elemsLoc = obj.mesh.el(pIdx,:);
                     detDLoc  = detD(:,:,pIdx);
                     DinvTLoc = DinvT(:,:,pIdx);
+                    DkLoc    = Dk(:,:,pIdx);
+                    signLoc  = sign(:,:,pIdx);
+                    el2edLoc = obj.mesh.el2ed(pIdx,:);
                     
                     %% handle stiffness matrix
                     if opt.S==1
                         if iscell(opt.A)
-                            aux.S{i} = obj.stiffness(opt.A{i},DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.co);
+                            aux.S{i} = obj.stiffness(opt.A{i},signLoc,DkLoc,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.ed,el2edLoc);
                         else
-                            aux.S{i} = obj.stiffness(opt.A,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.co);
+                            aux.S{i} = obj.stiffness(opt.A,signLoc,DkLoc,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.ed,el2edLoc);
                         end
                         S = S + aux.S{i};
                     end
-                    %% handle damping matrix
-                    if opt.D==1
-                        if iscell(opt.b)
-                            aux.D{i} = obj.damping(opt.b{i},DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
-                        else
-                            aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
-                        end
-                        D = D + aux.D{i};
-                    end
+%                     %% handle damping matrix
+%                     if opt.D==1
+%                         if iscell(opt.b)
+%                             aux.D{i} = obj.damping(opt.b{i},DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
+%                         else
+%                             aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
+%                         end
+%                         D = D + aux.D{i};
+%                     end
                     %% handle mass matrix
                     if opt.M==1
                         if iscell(opt.c)
 %                         aux.M{i} = obj.mass(opt.c,detDLoc,phi,w,l,elemsLoc,obj.mesh.co);
-                            aux.M{i} = obj.mass(opt.c{i},detDLoc,pipj,elemsLoc,obj.mesh.co);
+                            aux.M{i} = obj.mass(opt.c{i},signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         else
-                            aux.M{i} = obj.mass(opt.c,detDLoc,pipj,elemsLoc,obj.mesh.co);
+                            aux.M{i} = obj.mass(opt.c,signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         end
                         M = M + aux.M{i};
                     end
                     %% handle volume force matrix
                     if ~isempty(opt.force)
                         if iscell(opt.force)
-                            aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force{i},elemsLoc,obj.mesh.co);
+                            aux.force{i} = obj.volume_force(signLoc,detDLoc,DinvTLoc,phi,w,l,opt.force{i},elemsLoc,obj.mesh.co,el2edLoc,Nc);
                         else
-                            aux.force{i} = obj.volume_force(detDLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co);
+                            aux.force{i} = obj.volume_force(signLoc,detDLoc,DinvTLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co,el2edLoc,Nc);
                         end
                         b = b + aux.force{i};
                     end 
@@ -745,10 +767,10 @@ classdef elliptic < handle
             DOFs = 1:Nc; % NOTE: this is only valid for P1 elements => need an update
             if intdiri==1
                 for i=1:Ndiri
-                    nodes = obj.mesh.dirichlet(opt.dirichlet{i}.idx);
-                    aux.dirichletNodes{i}=nodes{1};
-                    DOFs  = setdiff(DOFs,nodes{1});
-                    aux.dirichlet{i} = obj.dirichlet(opt.dirichlet{i}.f,nodes{1},obj.mesh.co);
+                    edges = obj.mesh.dirichletEdges(opt.dirichlet{i}.idx);
+                    aux.dirichletEdges{i}=edges{1};
+                    DOFs  = setdiff(DOFs,edges{1});
+                    aux.dirichlet{i} = obj.dirichlet(opt.dirichlet{i}.f,edges{1},obj.mesh.ed,obj.mesh.co);
                     dirichlet = dirichlet+aux.dirichlet{i};
                     b = b - (S+D+M+M_robin)*aux.dirichlet{i};
                 end
@@ -1033,5 +1055,99 @@ classdef elliptic < handle
                 colorbar;
         end
         end
+                %% Reconstruct the solution at the nodes from nedelec computations
+        function uNode = edge2NodeData(obj,u)
+            [w,l] = obj.qr.data(0);
+            [DinvT,detD,Dk] = obj.mesh.jacobiandata();
+            detD = abs(detD);
+            phi = obj.fe.phi(l);
+            u = u(obj.mesh.el2ed);
+            u = u.*double(obj.mesh.el2edsign);
+            u = reshape(u',6,1,[]);
+            u = ofem.matrixarray(u);
+            uElem = detD*(DinvT*phi*u);
+            uElem = reshape(uElem(:),3,[]);
+            uElem = repelem(uElem,1,4);
+            detD = detD(:);
+            detD = repelem(detD,4,1);
+            i = obj.mesh.el;
+            i = i*3;
+            i = repelem(i,1,3);
+            vect = [-2,-1,0];
+            vect = repmat(vect,1,4);
+            i = i+vect;
+            i = i';
+            j = obj.mesh.el';
+            uNodes2 = sparse(i(:),1,uElem(:));
+            detDscale2 = sparse(j(:),1,detD);
+            uNodes2 = reshape(full(uNodes2),3,1,[]);
+            uNodes2 = ofem.matrixarray(uNodes2);
+            detDscale2 = reshape(full(detDscale2),1,1,[]);
+            detDscale2 = ofem.matrixarray(detDscale2);
+            uNode = uNodes2*(1./detDscale2);
+            
+            
+            
+%             uelems = u(obj.mesh.el2ed);
+%             phir(:,:,1) = [1 0 0;
+%                           0 1 0;
+%                           0 0 1];
+%             phir(:,:,2) = [1 0 0;
+%                           1 1 0;
+%                           1 0 -1];
+%             phir(:,:,3) = [1 -1 0;
+%                           1 0 0;
+%                           1 0 1];
+%             phir(:,:,4) = [1 0 1;
+%                           1 -1 0;
+%                           1 0 0];
+%             uSel = [1 1 1 0 0 0;
+%                     1 0 0 1 0 1;
+%                     0 1 0 1 1 0;
+%                     0 0 1 0 1 1];
+%             uSel = logical(uSel);
+%             nodeIdx = [1,2,3,4];
+%             nodeIdx = repmat(nodeIdx,size(obj.mesh.el,1),1);
+%             uNode = zeros(3,1,size(obj.mesh.co,3));
+%             uNode = ofem.matrixarray(uNode);
+%             for i = 1:size(obj.mesh.co,3)
+%                 elidx = obj.mesh.el==i;
+%                 D = DinvT(:,:,logical(sum(elidx,2)));
+%                 nIdx = nodeIdx(elidx);
+%                 phiEl = phir(:,:,nIdx);
+%                 phiEl = ofem.matrixarray(phiEl);
+%                 uEl = uSel(nIdx,:);
+%                 uEdge = uelems(logical(sum(elidx,2)),:);
+%                 uEdge = uEdge(uEl);
+%                 uEdge = reshape(uEdge,[],3);
+%                 uEdge = reshape(uEdge',3,1,[]);
+%                 uEdge = ofem.matrixarray(uEdge);
+%                 sign = obj.mesh.el2edsign(logical(sum(elidx,2)),:);
+%                 sign = sign(uEl);
+%                 sign = reshape(sign,[],3);
+%                 sign = reshape(sign',3,1,[]);
+%                 sign = ofem.matrixarray(sign);
+%                 temp = (D*phiEl)*(uEdge.*sign);
+%                 uNode(:,:,i) = sum(sum(temp,2),3);
+                
+%             end
+        end
     end
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

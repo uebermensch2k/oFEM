@@ -59,9 +59,21 @@ classdef finiteelement
                     error('MATLAB:ofem:finiteelement:weights:NotSupported',...
                           'Q2 not implemented yet!');
                     
+                % For Nedelec non barycentric coordinates are used
                 case ofem.finiteelement.NE0P
-                    error('MATLAB:ofem:finiteelement:weights:NotSupported',...
-                          'NE0P not implemented yet!');
+                    switch dim
+                        case 2
+                            w=1/factorial(dim);
+                            l=repmat(1/(dim+1),1,dim+1);
+                            coord = [0 1 0; 0 0 1];
+                            l = coord*l';
+                        case 3
+                            w=1/factorial(dim);
+                            l=repmat(1/(dim+1),1,dim+1);
+                            coord = [0 1 0 0; 0 0 1 0; 0 0 0 1];
+                            l = coord*l';
+                    end
+                    
 
                 case ofem.finiteelement.NE1P
                     error('MATLAB:ofem:finiteelement:weights:NotSupported',...
@@ -151,8 +163,15 @@ classdef finiteelement
                           'Q2 not implemented yet!');
                     
                 case ofem.finiteelement.NE0P
-                    error('ofem:finiteelement:phiiphij:Unsupported',...
-                          'NE0P not implemented yet!');
+                    
+                    switch dim
+                        case 2
+                            pipj = [0.2222 -1/9 -1/9
+                                    -1/9 0.2222 -1/9
+                                    -1/9 -1/9 02222];
+                        case 3
+                            pipj = 1;
+                    end
                     
                 case ofem.finiteelement.NE1P
                     error('ofem:finiteelement:phiiphij:Unsupported',...
@@ -240,8 +259,30 @@ classdef finiteelement
                           'Q2 not implemented yet!');
                     
                 case ofem.finiteelement.NE0P
-                    error('ofem:finiteelement:phi:Unsupported',...
-                          'NE0P not implemented yet!');
+                    dim = size(l,1);
+                    switch dim
+                        case 2
+                            % 2D basis functions
+                            % phi1 = (-x2;x1)
+                            % phi2 = (-x2;x1-1)
+                            % phi3 = (1-x2;x1)
+                            
+                            shape = [-l(2) -l(2) 1-l(2);
+                                    l(1) l(1)-1 l(1)];
+                            
+                        case 3
+                            %3D basis functions
+                            % phi1 = (1-x3-x2;x1;x1)
+                            % phi2 = (x2;1-x3-x1;x2)
+                            % phi3 = (x3;x3;1-x2-x1)
+                            % phi4 = (-x2;x1;0)
+                            % phi5 = (0;-x3;x2)
+                            % phi6 = (x3;0;-x1)
+                            
+                            shape = [1-l(3)-l(2)    l(2)        l(3)        -l(2) -l(3)    0   ;
+                                     l(1)       1-l(3)-l(1)     l(3)        l(1)     0  -l(3)  ;
+                                     l(1)           l(2)    1-l(2)-l(1)       0    l(1)   l(2) ];
+                    end
                     
                 case ofem.finiteelement.NE1P
                     error('ofem:finiteelement:phi:Unsupported',...
@@ -389,9 +430,20 @@ classdef finiteelement
                     error('ofem:finiteelement:dphi:Unsupported',...
                           'Q2 not implemented yet!');
                     
+                % For Nedelec elements dphi is the curl of phi
                 case ofem.finiteelement.NE0P
-                    error('ofem:finiteelement:dphi:Unsupported',...
-                          'NE0P not implemented yet!');
+                    dim = size(l,1);
+                    switch dim
+                        case 2
+                            dshape = [2 2 2];
+                            dshape = reshape(dshape,3,1,1);
+                        case 3
+                            dshape = [0  2 -2  0  0  2;
+                                      -2 0  2  0  -2 0;
+                                      2 -2  0  2  0  0];
+                            dshape = reshape(dshape,3,6,1);
+                            
+                    end
                     
                 case ofem.finiteelement.NE1P
                     error('ofem:finiteelement:dphi:Unsupported',...
