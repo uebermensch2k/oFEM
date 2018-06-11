@@ -68,10 +68,14 @@ classdef finiteelement
                             coord = [0 1 0; 0 0 1];
                             l = coord*l';
                         case 3
-                            w=1/factorial(dim);
-                            l=repmat(1/(dim+1),1,dim+1);
+                            w=[1;1;1;1]/24;
+                            a = 0.1381966011250105151795413165634361;
+                            b = [a,a,a,1-3*a;a,a,1-3*a,a;a,1-3*a,a,a;1-3*a,a,a,a];
                             coord = [0 1 0 0; 0 0 1 0; 0 0 0 1];
-                            l = coord*l';
+                            l(:,1) = coord*b(:,1);
+                            l(:,2) = coord*b(:,2);
+                            l(:,3) = coord*b(:,3);
+                            l(:,4) = coord*b(:,4);
                     end
                     
 
@@ -279,9 +283,13 @@ classdef finiteelement
                             % phi5 = (0;-x3;x2)
                             % phi6 = (x3;0;-x1)
                             
-                            shape = [1-l(3)-l(2)    l(2)        l(3)        -l(2) -l(3)    0   ;
-                                     l(1)       1-l(3)-l(1)     l(3)        l(1)     0  -l(3)  ;
-                                     l(1)           l(2)    1-l(2)-l(1)       0    l(1)   l(2) ];
+                            Nq = size(l,2);
+                            shape = zeros(3,6,Nq);
+                            for i=1:Nq
+                                shape(:,:,i) = [1-l(3,i)-l(2,i)    l(2,i)        l(3,i)        -l(2,i) -l(3,i)    0   ;
+                                                l(1,i)       1-l(3,i)-l(1,i)     l(3,i)        l(1,i)     0  -l(3,i)  ;
+                                                l(1,i)           l(2,i)    1-l(2,i)-l(1,i)       0    l(1,i)   l(2,i) ];
+                            end
                     end
                     
                 case ofem.finiteelement.NE1P

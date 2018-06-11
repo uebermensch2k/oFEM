@@ -12,7 +12,7 @@ classdef CurlCurl < handle
     methods(Access=protected,Static)
 
         %%
-        function S=stiffness(A,sign,Dk,DinvT,detD,dphi,w,l,el,ed,el2ed)
+        function S=stiffness(A,sign,Dk,detD,dphi,el,ed,el2ed)
         %stiffness returns the stiffness matrix.
         %
         % S=stiffness(DinvT,detD,dphi,w,el,co) returns the stiffness matrix
@@ -63,7 +63,7 @@ classdef CurlCurl < handle
 
             
 
-            S=w*A*S*(1./detD);
+            S=A*S*(1./abs(detD))/6;
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -74,7 +74,7 @@ classdef CurlCurl < handle
 
 
         %%
-        function D=damping(b,sign,DinvT,detD,phi,dphi,w,l,el,co)
+        function D=damping(b,v,sign,DinvT,Dk,phi,dphi,w,el,ed,el2ed)
         %DAMPING returns the damping matrix.
         %
         % D=damping(b,DinvT,detD,phi,dphi,w,el,co) returns the damping
@@ -98,32 +98,30 @@ classdef CurlCurl < handle
         % See also ofem.mesh.jacobian_data, ofem.finiteelement.phi,
         % ofem.finiteelement.dphi, ofem.quassianquadrature.data
         %
-            Ns = size(dphi,1);
             Nq = size(w   ,1);
+            Ns = size(dphi,2);
+            Nd = size(dphi,1);
             Ne = size(el  ,1);
-            Nc = size(co  ,3);
+            Nc = size(ed  ,1);
 
             D=ofem.matrixarray(zeros(Ns,Ns,Ne));
-
-            if isa(b,'function_handle')
-                Nl   = size(l  ,2); % number of barycentric coordinates
-                elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
-
-                for q=1:Nq
-                    X = elco*(l(q,:)');
-                    D=D+phi(:,q)*((w(q)*b(X))'*(DinvT*dphi(:,:,q)'));
-                end
-            else
-                for q=1:Nq
-                    D=D+phi(:,q)*((w(q)*b   )'*(DinvT*dphi(:,:,q)'));
-                end
+            
+            vCurlPhi = ofem.matrixarray(zeros(Nd,Ns,Ne));
+            
+            cPhi = (dphi(:,:).*sign);
+            for i=1:Ns
+                vCurlPhi(:,i,:) = cross(v,(Dk*cPhi));
             end
 
-            D=D*detD;
+            for q=1:Nq
+                D = D + w(q)*(vCurlPhi*(DinvT*(phi(:,:,q).*sign)));
+            end
+            
+            D = b*D;
 
             J = repmat(1:Ns,Ns,1);
-            I = el(:,J')';
-            J = el(:,J )';
+            I = el2ed(:,J')';
+            J = el2ed(:,J )';
 
             D = sparse(I(:),J(:),D(:),Nc,Nc);
         end
@@ -145,48 +143,19 @@ classdef CurlCurl < handle
         %
         % See also ofem.mesh.jacobian_data, ofem.finiteelement.phiiphij
         %
-%             Ns = size(phi,1);
-%             Nq = size(w  ,1);
-%             Ne = size(el ,1);
-%             Nc = size(co ,3);
-% 
-% 
-%             if isa(c,'function_handle')
-%                 M=ofem.matrixarray(zeros(Ns,Ns,Ne));
-% 
-%                 Nl   = size(l  ,2); % number of barycentric coordinates
-%                 elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
-% 
-%                 for q=1:Nq
-%                     X = elco*(l(q,:)');
-%                     M = M+c(X)*(phi(:,q)*phi(:,q)');
-%                 end
-%             else
-%                 if isscalar(c)
-%                     M = zeros(Ns,Ns);
-%                 else
-%                     M=ofem.matrixarray(zeros(Ns,Ns,Ne));
-%                 end
-%                 for q=1:Nq
-%                     M = M+c*(phi(:,q)*phi(:,q)');
-%                 end
-%             end
-% 
-%             M = M*detD;
-% 
-%             J = repmat(1:Ns,Ns,1);
-%             I = el(:,J )';
-%             J = el(:,J')';
-% 
-%             M = sparse(I(:),J(:),M(:),Nc,Nc);
 
-
+            Nq = size(w,1);
             Ns = size(phi,2);
             Nc = size(ed,1);
+            Ne = size(el,1);
+            
+            phii = ofem.matrixarray(zeros(6,6,Ne));
 
-            phii = DinvT*(phi.*sign);
-
-            M = w*c*detD*(phii'*phii);
+            for q=1:Nq
+                phii = phii + w(q)*((DinvT*(phi(:,:,q).*sign))'*(DinvT*(phi(:,:,q).*sign)));
+            end
+         
+            M = c*(abs(detD))*phii;
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -210,26 +179,28 @@ classdef CurlCurl < handle
         % See also ofem.mesh.jacobian_data, ofem.finiteelement.phi,
         % ofem.quassianquadrature.data
         %
-            l = [1/4,1/4,1/4,1/4]';
-            Nl   = size(l  ,1); % number of barycentric coordinates
+            Nl   = size(l  ,1)+1; % number of barycentric coordinates
             Nq   = size(w  ,1);
             Ne   = size(el ,1);
+            l(4,:) = 1-sum(l,1);
             
-            % eval at element centers
+            % eval at quadrature points
             elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
             
 
-            F    = ofem.matrixarray(zeros(1,1,Ne));
+            F    = ofem.matrixarray(zeros(6,1,Ne));
 
             % how to get the data from the element to the edges
             if(isa(f,'function_handle'))
                 for q=1:Nq
-                    X = elco*l;
+                    X = elco*l(:,q);
                     A = f(X);
                     if ~isempty(A)
-                        F = F + (w*(DinvT*phi).*sign)'*A;
+                        F = F + (w(q)*(DinvT*(phi(:,:,q).*sign))'*A);
                     end
                 end
+            elseif f==0
+                F = ofem.matrixarray(zeros(6,1,Ne));
             else
                 el = repelem(el,1,3);
                 el = el*3;
@@ -250,7 +221,7 @@ classdef CurlCurl < handle
             %F = permute(double(F*detD),[3,2,1]);
             %F = repmat(F,6,1,1);
 
-            F  = F*detD;
+            F  = F*abs(detD);
             el2ed = el2ed';
             b  = sparse(el2ed(:),1,F(:),Nc,1);
         end
@@ -325,6 +296,7 @@ classdef CurlCurl < handle
             end
 
             obj.mesh = mesh;
+            obj.mesh.el = sort(obj.mesh.el,2);
             obj.mesh.create_edges();
             obj.fe   = fe;
             obj.qr   = qr;
@@ -448,6 +420,9 @@ classdef CurlCurl < handle
                         %fix
                         opt.b=zeros(dim,1);
                         opt.b(1)= 1;
+                    end
+                    if ~isfield(opt,'v')
+                        opt.v = [0,0,0];
                     end
                 end
 
@@ -684,8 +659,10 @@ classdef CurlCurl < handle
                 phi   = obj.fe.phi(l);
                 dphi  = obj.fe.dphi(l);
                 [DinvT,detD,Dk] = obj.mesh.jacobiandata;
-                detD = abs(detD);
-                aux.detD    =detD;
+                %detD = abs(detD);
+                aux.detD    = detD;
+                aux.Dk      = Dk;
+                aux.DinvT   = DinvT;
                 sign = reshape(obj.mesh.el2edsign',1,6,[]);
                 sign = repmat(sign,3,1,1);
                 sign = ofem.matrixarray(sign);
@@ -703,25 +680,24 @@ classdef CurlCurl < handle
                     %% handle stiffness matrix
                     if opt.S==1
                         if iscell(opt.A)
-                            aux.S{i} = obj.stiffness(opt.A{i},signLoc,DkLoc,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.S{i} = obj.stiffness(opt.A{i},signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc);
                         else
-                            aux.S{i} = obj.stiffness(opt.A,signLoc,DkLoc,DinvTLoc,detDLoc,dphi,w,l,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.S{i} = obj.stiffness(opt.A,signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc);
                         end
                         S = S + aux.S{i};
                     end
-%                     %% handle damping matrix
-%                     if opt.D==1
-%                         if iscell(opt.b)
-%                             aux.D{i} = obj.damping(opt.b{i},DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
-%                         else
-%                             aux.D{i} = obj.damping(opt.b,DinvTLoc,detDLoc,phi,dphi,w,l,elemsLoc,obj.mesh.co);
-%                         end
-%                         D = D + aux.D{i};
-%                     end
+                    %% handle damping matrix
+                    if opt.D==1
+                        if iscell(opt.b)
+                            aux.D{i} = obj.damping(opt.b{i},opt.v,DinvTLoc,DkLoc,phi,dphi,w,l,elemsLoc,obj.mesh.ed,el2edLoc);
+                        else
+                            aux.D{i} = obj.damping(opt.b,opt.v,DinvTLoc,DkLoc,phi,dphi,w,l,elemsLoc,obj.mesh.ed,el2edLoc);
+                        end
+                        D = D + aux.D{i};
+                    end
                     %% handle mass matrix
                     if opt.M==1
                         if iscell(opt.c)
-%                         aux.M{i} = obj.mass(opt.c,detDLoc,phi,w,l,elemsLoc,obj.mesh.co);
                             aux.M{i} = obj.mass(opt.c{i},signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         else
                             aux.M{i} = obj.mass(opt.c,signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc);
@@ -1057,8 +1033,9 @@ classdef CurlCurl < handle
         end
                 %% Reconstruct the solution at the nodes from nedelec computations
         function uNode = edge2NodeData(obj,u)
-            [w,l] = obj.qr.data(0);
+%             [w,l] = obj.qr.data(0);
             [DinvT,detD,Dk] = obj.mesh.jacobiandata();
+            l = [1/4;1/4;1/4];
             detD = abs(detD);
             phi = obj.fe.phi(l);
             u = u(obj.mesh.el2ed);
@@ -1085,52 +1062,17 @@ classdef CurlCurl < handle
             detDscale2 = reshape(full(detDscale2),1,1,[]);
             detDscale2 = ofem.matrixarray(detDscale2);
             uNode = uNodes2*(1./detDscale2);
-            
-            
-            
-%             uelems = u(obj.mesh.el2ed);
-%             phir(:,:,1) = [1 0 0;
-%                           0 1 0;
-%                           0 0 1];
-%             phir(:,:,2) = [1 0 0;
-%                           1 1 0;
-%                           1 0 -1];
-%             phir(:,:,3) = [1 -1 0;
-%                           1 0 0;
-%                           1 0 1];
-%             phir(:,:,4) = [1 0 1;
-%                           1 -1 0;
-%                           1 0 0];
-%             uSel = [1 1 1 0 0 0;
-%                     1 0 0 1 0 1;
-%                     0 1 0 1 1 0;
-%                     0 0 1 0 1 1];
-%             uSel = logical(uSel);
-%             nodeIdx = [1,2,3,4];
-%             nodeIdx = repmat(nodeIdx,size(obj.mesh.el,1),1);
-%             uNode = zeros(3,1,size(obj.mesh.co,3));
-%             uNode = ofem.matrixarray(uNode);
-%             for i = 1:size(obj.mesh.co,3)
-%                 elidx = obj.mesh.el==i;
-%                 D = DinvT(:,:,logical(sum(elidx,2)));
-%                 nIdx = nodeIdx(elidx);
-%                 phiEl = phir(:,:,nIdx);
-%                 phiEl = ofem.matrixarray(phiEl);
-%                 uEl = uSel(nIdx,:);
-%                 uEdge = uelems(logical(sum(elidx,2)),:);
-%                 uEdge = uEdge(uEl);
-%                 uEdge = reshape(uEdge,[],3);
-%                 uEdge = reshape(uEdge',3,1,[]);
-%                 uEdge = ofem.matrixarray(uEdge);
-%                 sign = obj.mesh.el2edsign(logical(sum(elidx,2)),:);
-%                 sign = sign(uEl);
-%                 sign = reshape(sign,[],3);
-%                 sign = reshape(sign',3,1,[]);
-%                 sign = ofem.matrixarray(sign);
-%                 temp = (D*phiEl)*(uEdge.*sign);
-%                 uNode(:,:,i) = sum(sum(temp,2),3);
-                
-%             end
+        end
+        function uCell = edge2CellData(obj,u)
+            [DinvT,~,~] = obj.mesh.jacobiandata();
+            uElem = u(obj.mesh.el2ed(:,:));
+            uElem = ofem.matrixarray(reshape(uElem',size(uElem,2),1,[]));
+            sign = reshape(obj.mesh.el2edsign',1,6,[]);
+            sign = repmat(sign,3,1,1);
+            sign = ofem.matrixarray(sign);
+            l = [1/4;1/4;1/4];
+            phi = obj.fe.phi(l);
+            uCell = (DinvT*(phi.*sign))*uElem;
         end
     end
 end
