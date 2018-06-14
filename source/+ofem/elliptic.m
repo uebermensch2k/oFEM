@@ -1039,7 +1039,7 @@ classdef elliptic < handle
             uElem = ofem.matrixarray(reshape(uElem',size(uElem,2),1,[]));
             l = [1/4,1/4,1/4,1/4];
             phi = obj.fe.dphi(l)';
-            du = (DinvT*(phi))*uElem;
+            du = DinvT*(phi*uElem);
         end
     end
 end

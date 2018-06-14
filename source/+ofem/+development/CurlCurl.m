@@ -73,7 +73,7 @@ classdef CurlCurl < handle
         end
 
 
-        %%
+        %%(opt.b{i},opt.v,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc)
         function D=damping(b,v,sign,DinvT,Dk,phi,dphi,w,el,ed,el2ed)
         %DAMPING returns the damping matrix.
         %
@@ -109,12 +109,13 @@ classdef CurlCurl < handle
             vCurlPhi = ofem.matrixarray(zeros(Nd,Ns,Ne));
             
             cPhi = (dphi(:,:).*sign);
+            v = ofem.matrixarray(repmat(v,1,1,Ne));
             for i=1:Ns
-                vCurlPhi(:,i,:) = cross(v,(Dk*cPhi));
+                vCurlPhi(:,i,:) = cross(v,(Dk*cPhi(:,i)));
             end
 
             for q=1:Nq
-                D = D + w(q)*(vCurlPhi*(DinvT*(phi(:,:,q).*sign)));
+                D = D + w(q)*(vCurlPhi'*(DinvT*(phi(:,:,q).*sign)));
             end
             
             D = b*D;
@@ -166,7 +167,7 @@ classdef CurlCurl < handle
 
 
         %%
-        function b=volume_force(sign,detD,DinvT,phi,w,l,f,el,co,el2ed,Nc)
+        function b=volume_force(sign,detD,DinvT,phi,w,l,f,el,co,el2ed,pIdx,Nc)
         %volume_force returns the volume force part of the load vector.
         %
         % b=volume_force(detD,phi,w,l,f,el,co) computes the force in
@@ -202,20 +203,12 @@ classdef CurlCurl < handle
             elseif f==0
                 F = ofem.matrixarray(zeros(6,1,Ne));
             else
-                el = repelem(el,1,3);
-                el = el*3;
-                vec = [-2,-1,0];
-                vec = repmat(vec,1,4);
-                el = el+vec;
-                f = reshape(f',[],1);
-                f = f(el);
-                Jx = f(:,[1,4,7,10])*l;
-                Jy = f(:,[2,5,8,11])*l;
-                Jz = f(:,[3,6,9,12])*l;
-                f = [Jx,Jy,Jz];
-                f = reshape(f',3,1,[]);
-                A = ofem.matrixarray(f);
-                F = F + (w*(DinvT*phi).*sign)'*A;
+                f = f(:,:,pIdx);
+                phii = ofem.matrixarray(zeros(3,6,Ne));
+                for q=1:Nq
+                    phii = phii + (w(q)*DinvT*phi(:,:,q).*sign);
+                end
+                F = phii'*f;
             end
 
             %F = permute(double(F*detD),[3,2,1]);
@@ -689,9 +682,9 @@ classdef CurlCurl < handle
                     %% handle damping matrix
                     if opt.D==1
                         if iscell(opt.b)
-                            aux.D{i} = obj.damping(opt.b{i},opt.v,DinvTLoc,DkLoc,phi,dphi,w,l,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.D{i} = obj.damping(opt.b{i},opt.v,signLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         else
-                            aux.D{i} = obj.damping(opt.b,opt.v,DinvTLoc,DkLoc,phi,dphi,w,l,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.D{i} = obj.damping(opt.b,opt.v,signLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         end
                         D = D + aux.D{i};
                     end
@@ -707,9 +700,9 @@ classdef CurlCurl < handle
                     %% handle volume force matrix
                     if ~isempty(opt.force)
                         if iscell(opt.force)
-                            aux.force{i} = obj.volume_force(signLoc,detDLoc,DinvTLoc,phi,w,l,opt.force{i},elemsLoc,obj.mesh.co,el2edLoc,Nc);
+                            aux.force{i} = obj.volume_force(signLoc,detDLoc,DinvTLoc,phi,w,l,opt.force{i},elemsLoc,obj.mesh.co,el2edLoc,pIdx,Nc);
                         else
-                            aux.force{i} = obj.volume_force(signLoc,detDLoc,DinvTLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co,el2edLoc,Nc);
+                            aux.force{i} = obj.volume_force(signLoc,detDLoc,DinvTLoc,phi,w,l,opt.force,elemsLoc,obj.mesh.co,el2edLoc,pIdx,Nc);
                         end
                         b = b + aux.force{i};
                     end 
@@ -1073,6 +1066,17 @@ classdef CurlCurl < handle
             l = [1/4;1/4;1/4];
             phi = obj.fe.phi(l);
             uCell = (DinvT*(phi.*sign))*uElem;
+        end
+        
+        function uCell = edge2CellCurl(obj,u)
+            [~,detD,Dk] = obj.mesh.jacobiandata();
+            dphi = obj.fe.dphi([1/4;1/4;1/4]);
+            uElem = u(obj.mesh.el2ed(:,:));
+            uElem = ofem.matrixarray(reshape(uElem',size(uElem,2),1,[]));
+            sign = reshape(obj.mesh.el2edsign',1,6,[]);
+            sign = repmat(sign,3,1,1);
+            sign = ofem.matrixarray(sign);
+            uCell = (1./detD)*(Dk*(dphi.*sign))*uElem;
         end
     end
 end
