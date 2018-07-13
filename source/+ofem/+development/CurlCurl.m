@@ -682,9 +682,9 @@ classdef CurlCurl < handle
                     %% handle damping matrix
                     if opt.D==1
                         if iscell(opt.b)
-                            aux.D{i} = obj.damping(opt.b{i},opt.v,signLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.D{i} = obj.damping(opt.b{i},opt.v{i},signLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         else
-                            aux.D{i} = obj.damping(opt.b,opt.v,signLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.D{i} = obj.damping(opt.b,opt.v{i},signLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         end
                         D = D + aux.D{i};
                     end
