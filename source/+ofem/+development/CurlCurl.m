@@ -1056,6 +1056,8 @@ classdef CurlCurl < handle
             detDscale2 = ofem.matrixarray(detDscale2);
             uNode = uNodes2*(1./detDscale2);
         end
+        
+        % Reconstruct cell data from the solution
         function uCell = edge2CellData(obj,u)
             [DinvT,~,~] = obj.mesh.jacobiandata();
             uElem = u(obj.mesh.el2ed(:,:));
@@ -1068,6 +1070,7 @@ classdef CurlCurl < handle
             uCell = (DinvT*(phi.*sign))*uElem;
         end
         
+        % Compute the Curl of the solution
         function uCell = edge2CellCurl(obj,u)
             [~,detD,Dk] = obj.mesh.jacobiandata();
             dphi = obj.fe.dphi([1/4;1/4;1/4]);
