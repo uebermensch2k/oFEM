@@ -1079,7 +1079,7 @@ classdef CurlCurl < handle
             sign = reshape(obj.mesh.el2edsign',1,6,[]);
             sign = repmat(sign,3,1,1);
             sign = ofem.matrixarray(sign);
-            uCell = (1./detD)*(Dk*(dphi.*sign))*uElem;
+            uCell = (1./abs(detD))*(Dk*(dphi.*sign))*uElem;
         end
     end
 end

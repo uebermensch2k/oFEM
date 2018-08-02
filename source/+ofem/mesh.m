@@ -1944,7 +1944,7 @@ classdef mesh < handle
             for i=1:Nm
                 partIDs  = obj.parts{3,i};
                 NpartIDs = numel(partIDs);
-                fprintf(fileID,formatStr,[currID+(1:NpartIDs); i*ones(1,NpartIDs); obj.el(partIDs,c2nidx)']);
+                fprintf(fileID,formatStr,[partIDs; i*ones(1,NpartIDs); obj.el(partIDs,c2nidx)']);
                 currID=currID+NpartIDs;
             end
 
