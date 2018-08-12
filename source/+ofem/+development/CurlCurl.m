@@ -7,6 +7,8 @@ classdef CurlCurl < handle
         mesh; % The mesh
         fe  ; % The finite element
         qr  ; % The quadrature rule
+		feLG; % P1 element for the generalized Lorenz Gauge
+		qrLG;
     end
 
     methods(Access=protected,Static)
@@ -40,28 +42,8 @@ classdef CurlCurl < handle
             
             S=ofem.matrixarray(zeros(Ns,Ns,Ne));
 
-%             S=ofem.matrixarray(zeros(Ns,Ns,Ne));
-
-%             if isa(A,'function_handle')
-%                 Nl   = size(l  ,2); % number of barycentric coordinates
-%                 elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
-%                 
-%                 for q=1:Nq
-%                     X = elco*(l(q,:)');
-%                     globdphi = DinvT*dphi(:,:,q)';
-%                     S=S+globdphi'*(w(q)*A(X))*globdphi;
-%                 end
-%             else
-%                 for q=1:Nq
-%                     globdphi = DinvT*dphi(:,:,q)';
-%                     S=S+globdphi'*(w(q)*A)*globdphi;
-%                 end
-%             end
-
             dphii = Dk*(dphi.*sign);
             S = S+(dphii'*dphii);
-
-            
 
             S=A*S*(1./abs(detD))/6;
 
@@ -115,7 +97,7 @@ classdef CurlCurl < handle
             end
 
             for q=1:Nq
-                D = D + w(q)*(vCurlPhi'*(DinvT*(phi(:,:,q).*sign)));
+                D = D + w(q)*(vCurlPhi'*(DinvT*(phi(:,:,q).*sign)))/6;
             end
             
             D = b*D;
@@ -153,7 +135,7 @@ classdef CurlCurl < handle
             phii = ofem.matrixarray(zeros(6,6,Ne));
 
             for q=1:Nq
-                phii = phii + w(q)*((DinvT*(phi(:,:,q).*sign))'*(DinvT*(phi(:,:,q).*sign)));
+                phii = phii + w(q)*((DinvT*(phi(:,:,q).*sign))'*(DinvT*(phi(:,:,q).*sign)))/6;
             end
          
             M = c*(abs(detD))*phii;
@@ -214,7 +196,7 @@ classdef CurlCurl < handle
             %F = permute(double(F*detD),[3,2,1]);
             %F = repmat(F,6,1,1);
 
-            F  = F*abs(detD);
+            F  = F*abs(detD)/6;
             el2ed = el2ed';
             b  = sparse(el2ed(:),1,F(:),Nc,1);
         end
@@ -269,7 +251,42 @@ classdef CurlCurl < handle
             Ne  = size(ed ,1);
             D   = d((co(:,:,ed(edges,1))+co(:,:,ed(edges,2)))./2);
             b   = sparse(edges,1,D(:),Ne,1);
-        end
+		end
+		
+		%%
+		function [G,L] = lorenzGauge(chi,eps,sign,detD,DinvT,pipj,dphiLG,phi,wLG,w,co,ed,el,el2ed)
+			Ns = size(pipj,1);
+            Nc = size(co  ,3);
+            
+            L = (chi*pipj)*ofem.matrixarray(abs(detD));
+
+            J = repmat(1:Ns,Ns,1);
+            I = el(:,J')';
+            J = el(:,J )';
+
+            L=sparse(I(:),J(:),L(:),Nc,Nc);
+			
+			Nq = size(w,1);
+            Ns = size(phi,2);
+            Nc = size(ed,1);
+            Ne = size(el,1);
+			
+			phii = ofem.matrixarray(zeros(6,4,Ne));
+			
+			for i=1:size(phi,3)
+				phii = phii + w(i)*((DinvT*sign.*phi(:,:,i))' * (DinvT*dphiLG'));
+			end
+			
+			G = phii*eps*abs(detD);
+			
+			I = repmat(1:6,4,1);
+			I = el2ed(:,I');
+			J = repmat(1:4,6,1);
+			J = el(:,J);
+			
+			G = sparse(I(:),J(:),G(:),size(ed,1),size(co,3))';
+			
+		end
     end
 
     methods
@@ -289,12 +306,16 @@ classdef CurlCurl < handle
             end
 
             obj.mesh = mesh;
-            obj.mesh.el = sort(obj.mesh.el,2);
+            %obj.mesh.el = sort(obj.mesh.el,2);
             obj.mesh.create_edges();
             obj.fe   = fe;
             obj.qr   = qr;
-        end
+		end
 
+		function setLG(obj,feLG,qrLG)
+			obj.feLG = feLG;
+			obj.qrLG = qrLG;
+		end
 
         %%
         function [asm,info,aux] = assemble(obj,varargin)
@@ -427,7 +448,20 @@ classdef CurlCurl < handle
                     if ~isfield(opt,'c')
                         opt.c=1;
                     end
-                end
+				end
+				
+				%% Gauge
+				if ~isfield(opt,'R')
+                    opt.R=0;
+                else
+                    aux.R = cell(Np,1);
+                    if ~isfield(opt,'chi')
+                        opt.chi=1;
+					end
+					if ~isfield(opt,'eps')
+                        opt.eps=1;
+                    end
+				end
 
                 %% volume force
                 if ~isfield(opt,'force')
@@ -631,6 +665,8 @@ classdef CurlCurl < handle
             S=sparse(Nc,Nc);
             D=sparse(Nc,Nc);
             M=sparse(Nc,Nc);
+			L=sparse(obj.mesh.Nco,obj.mesh.Nco);
+			G=sparse(obj.mesh.Nco,Nc);
             M_robin=sparse(Nc,Nc);
             b=sparse(Nc,1);
             dirichlet=sparse(Nc,1);
@@ -651,6 +687,11 @@ classdef CurlCurl < handle
                 %pipj  = obj.fe.phiiphij(obj.mesh.dim);
                 phi   = obj.fe.phi(l);
                 dphi  = obj.fe.dphi(l);
+				if opt.R
+					[wLG,lLG] = obj.qrLG.data(0);
+					dphiLG = obj.feLG.dphi(lLG);
+					pipj = obj.feLG.phiiphij(obj.mesh.dim);
+				end
                 [DinvT,detD,Dk] = obj.mesh.jacobiandata;
                 %detD = abs(detD);
                 aux.detD    = detD;
@@ -696,7 +737,13 @@ classdef CurlCurl < handle
                             aux.M{i} = obj.mass(opt.c,signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         end
                         M = M + aux.M{i};
-                    end
+					end
+					%% handle lorenz gauge
+					if opt.R==1
+						[aux.G{i},aux.L{i}] = obj.lorenzGauge(opt.chi,opt.eps,signLoc,detDLoc,DinvTLoc,pipj,dphiLG,phi,wLG,w,obj.mesh.co,obj.mesh.ed,elemsLoc,el2edLoc);
+						G = G + aux.G{i};
+						L = L + aux.L{i};
+					end
                     %% handle volume force matrix
                     if ~isempty(opt.force)
                         if iscell(opt.force)
@@ -706,7 +753,7 @@ classdef CurlCurl < handle
                         end
                         b = b + aux.force{i};
                     end 
-                end
+				end
             end
 
             %% surface related integration
@@ -754,7 +801,11 @@ classdef CurlCurl < handle
             end
             if opt.M
                 asm.M=M;
-            end
+			end
+			if opt.R
+				asm.G=G;
+				asm.L=L;
+			end
             if ~isempty(opt.force) || ~isempty(opt.dirichlet) || ~isempty(opt.neumann) || ~isempty(opt.robin)
                 asm.b=b;
             end

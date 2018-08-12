@@ -872,7 +872,7 @@ classdef mesh < handle
             Nt            = size(obj.ed,1)/2;
             obj.ed        = (reshape(obj.ed,2,[]))';
             [obj.ed,I]    = sort(obj.ed,2);
-            I             = -diff(I,1,2);%(:,2)-I(:,1);
+            I             = diff(I,1,2);%(:,2)-I(:,1);
             [obj.ed,~,ic] = unique(obj.ed,'rows','legacy');
             %[obj.ed,J]    = sortrows(obj.ed);
             obj.el2ed     = (reshape(ic,Nt,[]))';
