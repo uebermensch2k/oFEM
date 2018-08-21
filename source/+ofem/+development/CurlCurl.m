@@ -822,6 +822,8 @@ classdef CurlCurl < handle
             %% info variable
             info.time2assemble = toc;
         end
+        
+            
 
         %%
         function grad=gradu(obj,u)
@@ -1075,6 +1077,7 @@ classdef CurlCurl < handle
                 colorbar;
         end
         end
+        
                 %% Reconstruct the solution at the nodes from nedelec computations
         function uNode = edge2NodeData(obj,u)
 %             [w,l] = obj.qr.data(0);
@@ -1108,8 +1111,9 @@ classdef CurlCurl < handle
             uNode = uNodes2*(1./detDscale2);
         end
         
-        % Reconstruct cell data from the solution
+        %% 
         function uCell = edge2CellData(obj,u)
+            % Reconstruct cell data from the solution
             [DinvT,~,~] = obj.mesh.jacobiandata();
             uElem = u(obj.mesh.el2ed(:,:));
             uElem = ofem.matrixarray(reshape(uElem',size(uElem,2),1,[]));
@@ -1121,8 +1125,9 @@ classdef CurlCurl < handle
             uCell = (DinvT*(phi.*sign))*uElem;
         end
         
-        % Compute the Curl of the solution
+        %% 
         function uCell = edge2CellCurl(obj,u)
+            % Compute the Curl of the solution
             [~,detD,Dk] = obj.mesh.jacobiandata();
             dphi = obj.fe.dphi([1/4;1/4;1/4]);
             uElem = u(obj.mesh.el2ed(:,:));
@@ -1132,6 +1137,34 @@ classdef CurlCurl < handle
             sign = ofem.matrixarray(sign);
             uCell = (1./abs(detD))*(Dk*(dphi.*sign))*uElem;
         end
+        
+        %%
+        function u0 = initialData(obj,f)
+            v = obj.mesh.co(:,:,obj.mesh.ed(:,2))-obj.mesh.co(:,:,obj.mesh.ed(:,1));
+
+            co = 1/2*obj.mesh.co(:,:,obj.mesh.ed(:,1))+1/2*obj.mesh.co(:,:,obj.mesh.ed(2));
+
+            F = f(co);
+
+            u0 = squeeze(dot(F,v));
+        end
+        
+        function [u0,eID] = setInflow(obj,bd)
+            ss = obj.mesh.bd(2,bd.idx);
+            ss = ss{1};
+            ss = unique(sort(ss,2),'rows','legacy');
+            ss = [ss(:,1),ss(:,2);ss(:,1),ss(:,3);ss(:,2),ss(:,3)];
+            idx = ismember(obj.mesh.ed,ss,'rows');
+            eID = find(idx);
+            v = obj.mesh.co(:,:,obj.mesh.ed(eID,2))-obj.mesh.co(:,:,obj.mesh.ed(eID,1));
+
+            co = 1/2*obj.mesh.co(:,:,obj.mesh.ed(eID,1))+1/2*obj.mesh.co(:,:,obj.mesh.ed(eID,2));
+            
+            F = bd.f(co);
+            
+            u0 = double(squeeze(dot(F,v)));
+        end
+            
     end
 end
 

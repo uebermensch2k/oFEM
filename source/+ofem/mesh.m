@@ -878,7 +878,7 @@ classdef mesh < handle
             obj.el2ed     = (reshape(ic,Nt,[]))';
             obj.el2edsign = int8(reshape(I,Nt,[])');
         end
-
+        
         %%
         function create_faces(obj)
         %CREATE_FACES creates faces information and element to faces mapping
