@@ -55,10 +55,14 @@ classdef gaussianquadrature
                             coord = [0 1 0; 0 0 1];
                             l = coord*l';
                         case 3
-                            w=1/factorial(dim);
-                            l=repmat(1/(dim+1),1,dim+1);
-                            coord = [0 1 0 0; 0 0 1 0; 0 0 0 1];
-                            l = coord*l';
+                            w=[1;1;1;1]/24;
+                            a = 0.1381966011250105151795413165634361;
+                            b = [a,a,a,1-3*a;a,a,1-3*a,a;a,1-3*a,a,a;1-3*a,a,a,a];
+                            coord = [1 0 0 0; 0 1 0 0; 0 0 1 0];
+                            l(:,1) = coord*b(:,1);
+                            l(:,2) = coord*b(:,2);
+                            l(:,3) = coord*b(:,3);
+                            l(:,4) = coord*b(:,4);
                     end
 
                 case ofem.finiteelement.NE1P

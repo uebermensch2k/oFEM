@@ -1033,5 +1033,24 @@ classdef elliptic < handle
                 colorbar;
         end
         end
+        function du = gradCell(obj,u)
+            [DinvT,~,~] = obj.mesh.jacobiandata();
+            uElem = u(obj.mesh.el(:,:));
+            uElem = ofem.matrixarray(reshape(uElem',size(uElem,2),1,[]));
+            l = [1/4,1/4,1/4,1/4];
+            phi = obj.fe.dphi(l)';
+            du = DinvT*(phi*uElem);
+        end
     end
 end
+
+
+
+
+
+
+
+
+
+
+

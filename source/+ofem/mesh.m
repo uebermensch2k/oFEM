@@ -782,6 +782,7 @@ classdef mesh < handle
                 obj.el = msh{2,3}{2,3}(:,2:5);
             end
             obj.Nco = size(obj.co,3);
+%             obj.el = unique(obj.el(),'rows','legacy');
             
             part = 1;
             bd = 1;
@@ -842,12 +843,12 @@ classdef mesh < handle
 
                 case 'tet'
                     %% tetrahedron
-                    obj.ed = [obj.el(:,[1 2]); ...
-                              obj.el(:,[1 3]); ...
-                              obj.el(:,[1 4]); ...
-                              obj.el(:,[2 3]); ...
-                              obj.el(:,[2 4]); ...
-                              obj.el(:,[3 4])];
+                    obj.ed = [obj.el(:,[1 2])'; ...
+                              obj.el(:,[1 3])'; ...
+                              obj.el(:,[1 4])'; ...
+                              obj.el(:,[2 3])'; ...
+                              obj.el(:,[2 4])'; ...
+                              obj.el(:,[3 4])'];
 
                 case 'hex'
                     %% hexahedron
@@ -868,14 +869,16 @@ classdef mesh < handle
                     error('ofem:mesh:Unspecified',...
                           'Unspecified error found');
             end
-
+            Nt            = size(obj.ed,1)/2;
+            obj.ed        = (reshape(obj.ed,2,[]))';
             [obj.ed,I]    = sort(obj.ed,2);
             I             = diff(I,1,2);%(:,2)-I(:,1);
-            [obj.ed,~,ic] = unique(obj.ed,'rows','stable');
-            obj.el2ed     = reshape(ic,Nt,[]);
-            obj.el2edsign = int8(reshape(I,Nt,[]));
+            [obj.ed,~,ic] = unique(obj.ed,'rows','legacy');
+            %[obj.ed,J]    = sortrows(obj.ed);
+            obj.el2ed     = (reshape(ic,Nt,[]))';
+            obj.el2edsign = int8(reshape(I,Nt,[])');
         end
-
+        
         %%
         function create_faces(obj)
         %CREATE_FACES creates faces information and element to faces mapping
@@ -1141,13 +1144,14 @@ classdef mesh < handle
                                   'Only Tetrahedron implemented so far!')
                     end
                 case 'msh'
+                    ss    = ss{1};
                     switch obj.type
                         case 'tet'
-                            for i=1:Nss
-                                tmp1 = ismember(obj.ed(:,1),ss(:,1));
-                                tmp2 = ismember(obj.ed(:,2),ss(:,2));
-                                eID{1} = find((tmp1+tmp2)==2);
-                            end
+                            ss = unique(sort(ss,2),'rows','legacy');
+                            ss = [ss(:,1),ss(:,2);ss(:,1),ss(:,3);ss(:,2),ss(:,3)];
+                            idx = ismember(obj.ed,ss,'rows');
+                            eID{1} = find(idx);
+                            
                         otherwise
                             error('ofem:mesh:dirichletEdges',...
                                   'Only Tetrahedron implemented so far!')
@@ -1829,38 +1833,64 @@ classdef mesh < handle
             Nm   = size(obj.parts,2); % number of materials
 
             % 
-            name = cell (Nf,1);
-            unit = cell (Nf,1);
-            Nfd  = zeros(Nf,1);
+            name{1} = 0;
+            unit{1} = 0;
+            Nfd  = 0;
+            nameC{1} = 0;
+            unitC{1} = 0;
+            NfdC  = 0;
+            solC = [];
+            sol = [];
+            j = 0;
+            k = 0;
 
             if issparse(meta{2})
                 warning('ofem:mesh:InvalidArgument',...
                         'u is not allowed to be sparse. I''ll convert it to full');
             end
-            if numel(meta)~=3
+            if numel(meta)~=4&&numel(meta)~=3
                 error('ofem:mesh:InvalidArgument',...
-                      'meta is expected to be a cell array with numel(meta)==3');
+                      'meta is expected to be a cell array with numel(meta)==4');
             end
-            name{1} = meta{1};
-            sol     = full(meta{2});
-            unit{1} = meta{3};
-            Nfd (1) = size(meta{2},2);
+            if numel(meta)==3
+                name{1} = meta{1};
+                sol     = full(meta{2});
+                Nfd (1) = size(meta{2},2);
+                unit{1} = meta{3};
+                j = j+1;
+            elseif meta{4} == 'Cell'
+                nameC{1} = meta{1};
+                solC     = full(meta{2});
+                NfdC(1)  = size(meta{2},2);
+                unitC{1} = meta{3};
+                k = k+1;
+            end
+            
 
             for i=1:nargin-4
                 if issparse(varargin{i}{2})
                 error('ofem:mesh:InvalidArgument',...
                       'u is not allowed to be sparse. I''ll convert it to full');
                 end
-                if numel(varargin{i})~=3
+                if numel(varargin{i})~=4&&numel(varargin{i})~=3
                     error('ofem:mesh:InvalidArgument',...
-                          'meta is expected to be a cell array with numel(meta)==3');
+                          'meta is expected to be a cell array with numel(meta)==4');
                 end
 
-                name{i+1} = varargin{i}{1};
-                Nfd (i+1) = size(varargin{i}{2},2);
-                unit{i+1} = varargin{i}{3};
+                if numel(varargin{i})==3
+                    name{j+1} = varargin{i}{1};
+                    Nfd (j+1) = size(varargin{i}{2},2);
+                    unit{j+1} = varargin{i}{3};
+                    sol(:,end+(1:Nfd(j+1))) = full(varargin{i}{2});
+                    j = j+1;
+                elseif varargin{i}{4} == 'Cell'
+                    nameC{k+1} = varargin{i}{1};
+                    NfdC(k+1)  = size(varargin{i}{2},2);
+                    unitC{k+1} = varargin{i}{3};
+                    solC(:,end+(1:NfdC(k+1))) = full(varargin{i}{2});
+                    k = k+1;
+                end
 
-                sol(:,end+(1:Nfd(i+1))) = full(varargin{i}{2});
             end
 
 
@@ -1872,9 +1902,10 @@ classdef mesh < handle
             %% UCD format
 
             %% header => #nodes #cells #nodedata #celldata #classdata
-            fprintf(fileID,'%d %d %d 0 0 \r\n',Nn, ...
+            fprintf(fileID,'%d %d %d %d 0 \r\n',Nn, ...
                                                Nc, ...
-                                               size(sol,2));
+                                               size(sol,2),...
+                                               size(solC,2));
 
             %% nodes => nodeID <x_1> <x_2> <x_3>
             co_virt=zeros(Nn,3);
@@ -1913,23 +1944,38 @@ classdef mesh < handle
             for i=1:Nm
                 partIDs  = obj.parts{3,i};
                 NpartIDs = numel(partIDs);
-                fprintf(fileID,formatStr,[currID+(1:NpartIDs); i*ones(1,NpartIDs); obj.el(partIDs,c2nidx)']);
+                fprintf(fileID,formatStr,[partIDs; i*ones(1,NpartIDs); obj.el(partIDs,c2nidx)']);
                 currID=currID+NpartIDs;
             end
 
             %% write functions
             % header => #func #colsfunc_1 ... #colsfunc_N
-            fprintf(fileID,'%d ',[Nf; Nfd]);
-            fprintf(fileID,'\r\n');
 
-            % names, units
-            for i=1:Nf
-                fprintf(fileID,'%s, %s\r\n',name{i},unit{i});
-            end
 
             % values => nodeID funcval_1 ... funcval_N
-            formatStr = ['%d ',repmat(' %e',1,size(sol,2)),'\r\n'];
-            fprintf(fileID,formatStr,[1:Nn;sol(1:Nn,:)']);
+            if Nfd~=0
+                fprintf(fileID,'%d ',[size(Nfd,2), Nfd]);
+                fprintf(fileID,'\r\n');
+
+                % names, units
+                for i=1:size(Nfd,2)
+                    fprintf(fileID,'%s, %s\r\n',name{i},unit{i});
+                end
+                formatStr = ['%d ',repmat(' %e',1,size(sol,2)),'\r\n'];
+                fprintf(fileID,formatStr,[1:Nn;sol(1:Nn,:)']);
+            end
+            
+            if NfdC ~=0
+                fprintf(fileID,'%d ',[size(NfdC,2), NfdC]);
+                fprintf(fileID,'\r\n');
+
+                % names, units
+                for i=1:size(NfdC,2)
+                    fprintf(fileID,'%s, %s\r\n',nameC{i},unitC{i});
+                end
+                formatStr = ['%d ',repmat(' %e',1,size(solC,2)),'\r\n'];
+                fprintf(fileID,formatStr,[1:Nc;solC(1:Nc,:)']);
+            end
 
             %% close file print info and exit
             fclose(fileID);
