@@ -306,7 +306,7 @@ classdef CurlCurl < handle
             end
 
             obj.mesh = mesh;
-            %obj.mesh.el = sort(obj.mesh.el,2);
+            obj.mesh.el = sort(obj.mesh.el,2);
             obj.mesh.create_edges();
             obj.fe   = fe;
             obj.qr   = qr;
