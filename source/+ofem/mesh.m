@@ -68,6 +68,10 @@ classdef mesh < handle
         % The procedure is analogous for dim==2, however, a tetrahedron is
         % build up from 4 faces.
         bd;
+		
+		% roi is a cell array similar to bd
+		% here regions of interest are stored
+		roi;
 
         % type is a string containing one of the following values
         %   'line' : The elements are edges
@@ -786,6 +790,7 @@ classdef mesh < handle
             
             part = 1;
             bd = 1;
+			roi = 1;
             Idx = 1:size(obj.el,1);
             for i=1:size(msh{2,1},2)
                 if startsWith(msh{2,1}{1,i},'M:')
@@ -809,6 +814,21 @@ classdef mesh < handle
                         obj.bd{2,bd} = msh{2,3}{2,2}(msh{2,3}{2,2}(:,1)==msh{2,1}{2,i},2:end);
                     end
                     bd = bd+1;
+				end
+				if startsWith(msh{2,1}{1,i},'ROI0:')
+                    obj.roi{1,roi} = msh{2,1}{1,i}(6:end);
+                    obj.roi{2,roi} = msh{2,3}{2,1}(msh{2,3}{2,1}(:,1)==msh{2,1}{2,i},2:end);
+                    roi = roi+1;
+				end
+				if startsWith(msh{2,1}{1,i},'ROI1:')
+                    obj.roi{1,roi} = msh{2,1}{1,i}(6:end);
+                    obj.roi{2,roi} = msh{2,3}{2,1}(msh{2,3}{2,1}(:,1)==msh{2,1}{2,i},2:end);
+                    roi = roi+1;
+				end
+				if startsWith(msh{2,1}{1,i},'ROI2:')
+					obj.roi{1,roi} = msh{2,1}{1,i}(6:end);
+                    obj.roi{2,roi} = msh{2,3}{2,2}(msh{2,3}{2,2}(:,1)==msh{2,1}{2,i},2:end);
+                    roi = roi+1;
                 end
             end
             
