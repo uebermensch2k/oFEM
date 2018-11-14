@@ -1037,7 +1037,12 @@ classdef elliptic < handle
             [DinvT,~,~] = obj.mesh.jacobiandata();
             uElem = u(obj.mesh.el(:,:));
             uElem = ofem.matrixarray(reshape(uElem',size(uElem,2),1,[]));
-            l = [1/4,1/4,1/4,1/4];
+			switch obj.mesh.dim
+				case 2
+					l = [1/3,1/3,1/3];
+				case 3
+					l = [1/4,1/4,1/4,1/4];
+			end
             phi = obj.fe.dphi(l)';
             du = DinvT*(phi*uElem);
         end

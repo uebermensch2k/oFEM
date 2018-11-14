@@ -1010,6 +1010,8 @@ classdef mesh < handle
                     %% triangle
                     e12 = obj.co(:,1,obj.el(:,2))-obj.co(:,1,obj.el(:,1));
                     e13 = obj.co(:,1,obj.el(:,3))-obj.co(:,1,obj.el(:,1));
+					
+					Dk = [e12,e13];
 
                     detD = dot(rot(e12),e13,1);
 
@@ -1963,8 +1965,9 @@ classdef mesh < handle
             
             for i=1:Nm
                 partIDs  = obj.parts{3,i};
+				partIDs = reshape(partIDs,1,[]);
                 NpartIDs = numel(partIDs);
-                fprintf(fileID,formatStr,[partIDs'; i*ones(1,NpartIDs); obj.el(partIDs,c2nidx)']);
+                fprintf(fileID,formatStr,[partIDs; i*ones(1,NpartIDs); obj.el(partIDs,c2nidx)']);
                 currID=currID+NpartIDs;
             end
 
