@@ -242,14 +242,21 @@ classdef CurlCurl < handle
 
 
         %%
-        function b=dirichlet(d,edges,ed,co)
+        function b=dirichlet(f,edges,ed,co)
         %dirichlet returns the Dirichlet-originated part of the load vector.
         %
         % b=dirichlet(el,co) computes the Dirichlet-originated vector at
         % the specified faces.
         %
             Ne  = size(ed ,1);
-            D   = d((co(:,:,ed(edges,1))+co(:,:,ed(edges,2)))./2);
+            v = co(:,:,ed(edges,2))-co(:,:,ed(edges,1));
+			if isa(f,'function_handle')
+				edco = 1/2*co(:,:,ed(edges,2))+1/2*co(:,:,ed(edges,1));
+				F = f(edco);
+			else
+				F = f;
+			end
+			D = double(squeeze(dot(F,v)));
             b   = sparse(edges,1,D(:),Ne,1);
 		end
 		
@@ -481,13 +488,13 @@ classdef CurlCurl < handle
                                 error('ofem:elliptic:InvalidArgument',...
                                       'Each cell entry in opt.dirichlet must be a struct containing a ''f'' and a ''idx'' field.');
                             end
-                            if isnumeric(opt.dirichlet{k}.f) && isscalar(opt.dirichlet{k}.f)
+                            if isnumeric(opt.dirichlet{k}.f) && ~isscalar(opt.dirichlet{k}.f) && isvector(opt.dirichlet{k}.f) && ~isrow(opt.dirichlet{k}.f)
                                 val = opt.dirichlet{k}.f;
-                                opt.dirichlet{k}.f = @(X) ofem.matrixarray(val*ones(1,1,size(X,3)));
+                                opt.dirichlet{k}.f = @(X) ofem.matrixarray(val.*ones(1,1,size(X,3)));
                             elseif isa(opt.dirichlet{k}.f,'function_handle')
                             else
                                 error('ofem:elliptic:InvalidArgument',...
-                                      'The ''f'' entry in opt.dirichlet must either be a scalar or a function handle.');
+                                      'The ''f'' entry in opt.dirichlet must either be a column vector of length 3 or a function handle.');
                             end
                         end
                     elseif isstruct(opt.dirichlet) && all(isfield(opt.dirichlet,{'f','idx'}))
@@ -499,13 +506,13 @@ classdef CurlCurl < handle
                                   'The ''idx'' entry in opt.dirichlet must be a vector.');
                         end
                         
-                        if isnumeric(dirichlet_f) && isscalar(dirichlet_f)
+                        if isnumeric(dirichlet_f) && ~isscalar(dirichlet_f) && isvector(dirichlet_f)
                             val = dirichlet_f;
                             dirichlet_f = @(X) ofem.matrixarray(val*ones(1,1,size(X,3)));
                         elseif isa(dirichlet_f,'function_handle')
                         else
                             error('ofem:elliptic:InvalidArgument',...
-                                  'The ''f'' entry in opt.dirichlet must either be a scalar or a function handle.');
+                                  'The ''f'' entry in opt.dirichlet must either be a vector or a function handle.');
                         end
                         
                         opt.dirichlet = cell(numel(dirichlet_idx),1);

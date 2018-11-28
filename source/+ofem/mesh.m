@@ -1247,7 +1247,7 @@ classdef mesh < handle
                                 % correct direction
                                 tmp = ofem.matrixarray(ones(1,1,size(normals{i},3)));
                                 tmp(1,1,dot(normals{i},obj.co(:,:,opp{i}),1)>=0) = -1;
-
+ 
                                 normals{i} = normals{i}./(2*meas{i}.*tmp);
                             end
                         case 'msh'
@@ -1380,7 +1380,7 @@ classdef mesh < handle
         end
 
         %% search querypoint in mesh
-        function [idx, tr, bary] = point_location(obj, xq, varargin)
+        function [idx, tr, bary] = point_location(obj, xq, opt)
         %point_location returns the index of the element which contains the
         %query-point. idx is the index, tr is the computed aabb-tree and bary 
         %are the baryzentric coordinates of the querypoint, depending on the 
@@ -1393,16 +1393,34 @@ classdef mesh < handle
         %If the function returns NaN, it means that the query-point is not
         %in the given mesh. 
            
-           pp  = double(reshape(permute(obj.co,[3,1,2]),[],size(obj.co,1)));
-           tt  = obj.el; 
+           
+		   if isfield(opt,'tr')
+			   tr = opt.tr;
+		   else
+			   tr = [];
+		   end
+		   if isfield(opt,'op')
+			   op = opt.op;
+		   else
+			   op = [];
+		   end
+		   tt = [];
+		   if isfield(opt,'parts')
+			   for i=1:length(opt.parts)
+					tt  = [tt,obj.el(obj.parts{3,i},:)];
+			   end
+		   else
+			   tt = obj.el;
+		   end
+		   pp  = double(reshape(permute(obj.co,[3,1,2]),[],size(obj.co,1)));
            tol = 1e-5;
            tp  = []; 
            tj  = []; 
            tr  = []; 
            op  = [];               
-                
-           if (nargin >= +5), tr = varargin{1}; end
-           if (nargin >= +6), op = varargin{2}; end
+		   
+           %if (nargin >= +5), tr = varargin{1}; end
+           %if (nargin >= +6), op = varargin{2}; end
                              
            if (isempty(tr))
                 %compute aabb's for triangles

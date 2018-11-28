@@ -1031,10 +1031,12 @@ classdef elliptic < handle
                 zlabel('z-axis');
                 legend(name);
                 colorbar;
-        end
-        end
+			end
+		end
+		
         function du = gradCell(obj,u)
-            [DinvT,~,~] = obj.mesh.jacobiandata();
+			% Computes the gradient inside each cell. No patch recovery
+            [DinvT,detD,~] = obj.mesh.jacobiandata();
             uElem = u(obj.mesh.el(:,:));
             uElem = ofem.matrixarray(reshape(uElem',size(uElem,2),1,[]));
 			switch obj.mesh.dim
@@ -1044,7 +1046,8 @@ classdef elliptic < handle
 					l = [1/4,1/4,1/4,1/4];
 			end
             phi = obj.fe.dphi(l)';
-            du = DinvT*(phi*uElem);
+			detD = ofem.matrixarray(abs(1/detD));
+            du = (DinvT*phi)*uElem;
         end
     end
 end
