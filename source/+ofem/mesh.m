@@ -1407,7 +1407,7 @@ classdef mesh < handle
 		   tt = [];
 		   if isfield(opt,'parts')
 			   for i=1:length(opt.parts)
-					tt  = [tt,obj.el(obj.parts{3,i},:)];
+					tt  = [tt,obj.el(obj.parts{3,opt.parts(i)},:)];
 			   end
 		   else
 			   tt = obj.el;
