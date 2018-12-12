@@ -45,7 +45,7 @@ classdef CurlCurl < handle
             dphii = Dk*(dphi.*sign);
             S = S+(dphii'*dphii);
 
-            S=A*S*(1./abs(detD))/6;
+            S=A*S*(1./abs(detD))*36;
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -56,7 +56,7 @@ classdef CurlCurl < handle
 
 
         %%(opt.b{i},opt.v,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc)
-        function D=damping(b,v,sign,DinvT,Dk,phi,dphi,w,el,ed,el2ed)
+        function D=damping(b,v,sign,detD,DinvT,Dk,phi,dphi,w,el,ed,el2ed)
         %DAMPING returns the damping matrix.
         %
         % D=damping(b,DinvT,detD,phi,dphi,w,el,co) returns the damping
@@ -93,14 +93,14 @@ classdef CurlCurl < handle
             cPhi = (dphi(:,:).*sign);
             v = ofem.matrixarray(repmat(v,1,1,Ne));
             for i=1:Ns
-                vCurlPhi(:,i,:) = cross(v,(Dk*cPhi(:,i)));
+                vCurlPhi(:,i,:) = cross(v,1./(detD)*(Dk*cPhi(:,i)));
             end
 
             for q=1:Nq
-                D = D + w(q)*(vCurlPhi'*(DinvT*(phi(:,:,q).*sign)))/6;
+                D = D + w(q)*(vCurlPhi'*(DinvT*(phi(:,:,q).*sign)));
             end
             
-            D = b*D;
+            D = b*D*abs(detD);
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -135,7 +135,7 @@ classdef CurlCurl < handle
             phii = ofem.matrixarray(zeros(6,6,Ne));
 
             for q=1:Nq
-                phii = phii + w(q)*((DinvT*(phi(:,:,q).*sign))'*(DinvT*(phi(:,:,q).*sign)))/6;
+                phii = phii + w(q)*((DinvT*(phi(:,:,q).*sign))'*(DinvT*(phi(:,:,q).*sign)));
             end
          
             M = c*(abs(detD))*phii;
@@ -173,7 +173,6 @@ classdef CurlCurl < handle
 
             F    = ofem.matrixarray(zeros(6,1,Ne));
 
-            % how to get the data from the element to the edges
             if(isa(f,'function_handle'))
                 for q=1:Nq
                     X = elco*l(:,q);
@@ -196,7 +195,7 @@ classdef CurlCurl < handle
             %F = permute(double(F*detD),[3,2,1]);
             %F = repmat(F,6,1,1);
 
-            F  = F*abs(detD)/6;
+            F  = F*abs(detD);
             el2ed = el2ed';
             b  = sparse(el2ed(:),1,F(:),Nc,1);
         end
@@ -730,9 +729,9 @@ classdef CurlCurl < handle
                     %% handle damping matrix
                     if opt.D==1
                         if iscell(opt.b)
-                            aux.D{i} = obj.damping(opt.b{i},opt.v{i},signLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.D{i} = obj.damping(opt.b{i},opt.v{i},signLoc,detDLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         else
-                            aux.D{i} = obj.damping(opt.b,opt.v{i},signLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.D{i} = obj.damping(opt.b,opt.v{i},signLoc,detDLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         end
                         D = D + aux.D{i};
                     end
