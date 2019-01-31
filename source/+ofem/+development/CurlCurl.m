@@ -14,7 +14,7 @@ classdef CurlCurl < handle
     methods(Access=protected,Static)
 
         %%
-        function S=stiffness(A,sign,Dk,detD,dphi,el,ed,el2ed)
+        function S=stiffness(A,sign,Dk,detD,dphi,el,ed,el2ed,w,l,co)
         %stiffness returns the stiffness matrix.
         %
         % S=stiffness(DinvT,detD,dphi,w,el,co) returns the stiffness matrix
@@ -36,16 +36,31 @@ classdef CurlCurl < handle
         % ofem.finiteelement.dphi, ofem.quassianquadrature.data
         %
             Ns = size(dphi,2);
-%             Nq = size(w   ,1);
+            Nq = size(w   ,1);
             Ne = size(el  ,1);
             Nc = size(ed,1);
+			Nl = 4;
+			w = 1;
+			l = [1/4,1/4,1/4,1/4];
+			Nq = 1;
             
             S=ofem.matrixarray(zeros(Ns,Ns,Ne));
 
-            dphii = Dk*(dphi.*sign);
-            S = S+(dphii'*dphii);
+			if isa(A,'function_handle')
+				elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+				for q=1:Nq
+					X = elco*(l(q,:)');
+					dphii = Dk*(dphi(:,:).*sign);
+					S = S+(dphii'*A(X)*dphii);
+				end
+			else
+				for q=1:Nq
+					dphii = Dk*(dphi(:,:).*sign);
+					S = S+(dphii'*A*dphii);
+				end
+			end
 
-            S=A*S*(1./abs(detD))*36;
+            S=S*(1./abs(detD));
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -85,6 +100,7 @@ classdef CurlCurl < handle
             Nd = size(dphi,1);
             Ne = size(el  ,1);
             Nc = size(ed  ,1);
+			Nl = 4;
 
             D=ofem.matrixarray(zeros(Ns,Ns,Ne));
             
@@ -111,7 +127,7 @@ classdef CurlCurl < handle
 
 
         %%
-        function M=mass(c,sign,DinvT,detD,phi,w,el,ed,el2ed)
+        function M=mass(c,sign,DinvT,detD,phi,w,el,ed,el2ed,co)
         %MASS returns the mass matrix.
         %
         % M=mass(detD,pipj,el,co) returns the mass matrix for the local set
@@ -131,14 +147,23 @@ classdef CurlCurl < handle
             Ns = size(phi,2);
             Nc = size(ed,1);
             Ne = size(el,1);
+			Nl = 4;
             
             phii = ofem.matrixarray(zeros(6,6,Ne));
 
-            for q=1:Nq
-                phii = phii + w(q)*((DinvT*(phi(:,:,q).*sign))'*(DinvT*(phi(:,:,q).*sign)));
-            end
+			if isa(c,'function_handle')
+				elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+				for q=1:Nq
+					X = elco*(l(q,:)');
+					phii = phii + w(q)*((DinvT*(phi(:,:,q).*sign))'*c(X)*(DinvT*(phi(:,:,q).*sign)));
+				end
+			else
+				for q=1:Nq
+					phii = phii + w(q)*((DinvT*(phi(:,:,q).*sign))'*c*(DinvT*(phi(:,:,q).*sign)));
+				end
+			end
          
-            M = c*(abs(detD))*phii;
+            M = (abs(detD))*phii;
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -720,9 +745,9 @@ classdef CurlCurl < handle
                     %% handle stiffness matrix
                     if opt.S==1
                         if iscell(opt.A)
-                            aux.S{i} = obj.stiffness(opt.A{i},signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.S{i} = obj.stiffness(opt.A{i},signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc,w,l,obj.mesh.co);
                         else
-                            aux.S{i} = obj.stiffness(opt.A,signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.S{i} = obj.stiffness(opt.A,signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc,w,l,obj.mesh.co);
                         end
                         S = S + aux.S{i};
                     end
@@ -738,9 +763,9 @@ classdef CurlCurl < handle
                     %% handle mass matrix
                     if opt.M==1
                         if iscell(opt.c)
-                            aux.M{i} = obj.mass(opt.c{i},signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.M{i} = obj.mass(opt.c{i},signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc,obj.mesh.co);
                         else
-                            aux.M{i} = obj.mass(opt.c,signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.M{i} = obj.mass(opt.c,signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc,obj.mesh.co);
                         end
                         M = M + aux.M{i};
 					end
@@ -1155,8 +1180,8 @@ classdef CurlCurl < handle
             u0 = squeeze(dot(F,v));
         end
         
-        function [u0,eID] = setInflow(obj,bd)
-            ss = obj.mesh.bd(2,bd.idx);
+        function [a0,eID] = setExcitation(obj,roi)
+            ss = obj.mesh.roi(2,roi.idx);
             ss = ss{1};
             ss = unique(sort(ss,2),'rows','legacy');
             ss = [ss(:,1),ss(:,2);ss(:,1),ss(:,3);ss(:,2),ss(:,3)];
@@ -1166,9 +1191,9 @@ classdef CurlCurl < handle
 
             co = 1/2*obj.mesh.co(:,:,obj.mesh.ed(eID,1))+1/2*obj.mesh.co(:,:,obj.mesh.ed(eID,2));
             
-            F = bd.f(co);
+            F = roi.f(co);
             
-            u0 = double(squeeze(dot(F,v)));
+            a0 = double(squeeze(dot(F,v)));
         end
             
     end
