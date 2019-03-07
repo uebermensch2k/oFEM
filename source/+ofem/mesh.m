@@ -1405,9 +1405,11 @@ classdef mesh < handle
 			   op = [];
 		   end
 		   tt = [];
+		   elidx = [];
 		   if isfield(opt,'parts')
 			   for i=1:length(opt.parts)
-					tt  = [tt,obj.el(obj.parts{3,opt.parts(i)},:)];
+					tt  = [tt;obj.el(obj.parts{3,opt.parts(i)},:)];
+					elidx = [elidx,obj.parts{3,opt.parts(i)}];
 			   end
 		   else
 			   tt = obj.el;
@@ -1806,7 +1808,8 @@ classdef mesh < handle
             
        % DinvT = obj.jacobiandata();
         
-        xq1(:,1,:) = xq'; %reshape querypoint-structure to compute baryzentrics    
+        xq1(:,1,:) = xq'; %reshape querypoint-structure to compute baryzentrics
+		idx = elidx(idx);
         bary = obj.barycentric_coordinates(xq1, idx);
 %         bary = DinvT(:,:,idx)'*(xq1-obj.co(:,1,obj.el(idx,1)));
 %         bary = [1-sum(bary,1); bary];

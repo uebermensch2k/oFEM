@@ -669,6 +669,7 @@ classdef elliptic < handle
                 phi   = obj.fe.phi(l);
                 dphi  = obj.fe.dphi(l);
                 [DinvT,detD] = obj.mesh.jacobiandata;
+				detD = ofem.matrixarray(abs(detD));
                 aux.detD    =detD;
 
                 % perform assembly
@@ -1046,7 +1047,6 @@ classdef elliptic < handle
 					l = [1/4,1/4,1/4,1/4];
 			end
             phi = obj.fe.dphi(l)';
-			detD = ofem.matrixarray(abs(1/detD));
             du = (DinvT*phi)*uElem;
         end
     end
