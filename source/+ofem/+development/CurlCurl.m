@@ -14,7 +14,7 @@ classdef CurlCurl < handle
     methods(Access=protected,Static)
 
         %%
-        function S=stiffness(A,sign,Dk,detD,dphi,el,ed,el2ed)
+        function S=stiffness(A,sign,Dk,detD,dphi,el,ed,el2ed,w,l,co)
         %stiffness returns the stiffness matrix.
         %
         % S=stiffness(DinvT,detD,dphi,w,el,co) returns the stiffness matrix
@@ -36,16 +36,31 @@ classdef CurlCurl < handle
         % ofem.finiteelement.dphi, ofem.quassianquadrature.data
         %
             Ns = size(dphi,2);
-%             Nq = size(w   ,1);
+            Nq = size(w   ,1);
             Ne = size(el  ,1);
             Nc = size(ed,1);
+			Nl = 4;
+			w = 1;
+			l = [1/4,1/4,1/4,1/4];
+			Nq = 1;
             
             S=ofem.matrixarray(zeros(Ns,Ns,Ne));
 
-            dphii = Dk*(dphi.*sign);
-            S = S+(dphii'*dphii);
+			if isa(A,'function_handle')
+				elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+				for q=1:Nq
+					X = elco*(l(q,:)');
+					dphii = Dk*(dphi(:,:).*sign);
+					S = S+(dphii'*A(X)*dphii);
+				end
+			else
+				for q=1:Nq
+					dphii = Dk*(dphi(:,:).*sign);
+					S = S+(dphii'*A*dphii);
+				end
+			end
 
-            S=A*S*(1./abs(detD))/6;
+            S=S*(1./abs(detD));
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -56,7 +71,7 @@ classdef CurlCurl < handle
 
 
         %%(opt.b{i},opt.v,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc)
-        function D=damping(b,v,sign,DinvT,Dk,phi,dphi,w,el,ed,el2ed)
+        function D=damping(b,v,sign,detD,DinvT,Dk,phi,dphi,w,el,ed,el2ed)
         %DAMPING returns the damping matrix.
         %
         % D=damping(b,DinvT,detD,phi,dphi,w,el,co) returns the damping
@@ -85,6 +100,7 @@ classdef CurlCurl < handle
             Nd = size(dphi,1);
             Ne = size(el  ,1);
             Nc = size(ed  ,1);
+			Nl = 4;
 
             D=ofem.matrixarray(zeros(Ns,Ns,Ne));
             
@@ -93,14 +109,14 @@ classdef CurlCurl < handle
             cPhi = (dphi(:,:).*sign);
             v = ofem.matrixarray(repmat(v,1,1,Ne));
             for i=1:Ns
-                vCurlPhi(:,i,:) = cross(v,(Dk*cPhi(:,i)));
+                vCurlPhi(:,i,:) = cross(v,1./(detD)*(Dk*cPhi(:,i)));
             end
 
             for q=1:Nq
-                D = D + w(q)*(vCurlPhi'*(DinvT*(phi(:,:,q).*sign)))/6;
+                D = D + w(q)*(vCurlPhi'*(DinvT*(phi(:,:,q).*sign)));
             end
             
-            D = b*D;
+            D = b*D*abs(detD);
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -111,7 +127,7 @@ classdef CurlCurl < handle
 
 
         %%
-        function M=mass(c,sign,DinvT,detD,phi,w,el,ed,el2ed)
+        function M=mass(c,sign,DinvT,detD,phi,w,el,ed,el2ed,co)
         %MASS returns the mass matrix.
         %
         % M=mass(detD,pipj,el,co) returns the mass matrix for the local set
@@ -131,14 +147,23 @@ classdef CurlCurl < handle
             Ns = size(phi,2);
             Nc = size(ed,1);
             Ne = size(el,1);
+			Nl = 4;
             
             phii = ofem.matrixarray(zeros(6,6,Ne));
 
-            for q=1:Nq
-                phii = phii + w(q)*((DinvT*(phi(:,:,q).*sign))'*(DinvT*(phi(:,:,q).*sign)))/6;
-            end
+			if isa(c,'function_handle')
+				elco = reshape(co(:,:,el(:,1:Nl)'),[],Nl,Ne);
+				for q=1:Nq
+					X = elco*(l(q,:)');
+					phii = phii + w(q)*((DinvT*(phi(:,:,q).*sign))'*c(X)*(DinvT*(phi(:,:,q).*sign)));
+				end
+			else
+				for q=1:Nq
+					phii = phii + w(q)*((DinvT*(phi(:,:,q).*sign))'*c*(DinvT*(phi(:,:,q).*sign)));
+				end
+			end
          
-            M = c*(abs(detD))*phii;
+            M = (abs(detD))*phii;
 
             J = repmat(1:Ns,Ns,1);
             I = el2ed(:,J')';
@@ -173,7 +198,6 @@ classdef CurlCurl < handle
 
             F    = ofem.matrixarray(zeros(6,1,Ne));
 
-            % how to get the data from the element to the edges
             if(isa(f,'function_handle'))
                 for q=1:Nq
                     X = elco*l(:,q);
@@ -196,7 +220,7 @@ classdef CurlCurl < handle
             %F = permute(double(F*detD),[3,2,1]);
             %F = repmat(F,6,1,1);
 
-            F  = F*abs(detD)/6;
+            F  = F*abs(detD);
             el2ed = el2ed';
             b  = sparse(el2ed(:),1,F(:),Nc,1);
         end
@@ -242,14 +266,21 @@ classdef CurlCurl < handle
 
 
         %%
-        function b=dirichlet(d,edges,ed,co)
+        function b=dirichlet(f,edges,ed,co)
         %dirichlet returns the Dirichlet-originated part of the load vector.
         %
         % b=dirichlet(el,co) computes the Dirichlet-originated vector at
         % the specified faces.
         %
             Ne  = size(ed ,1);
-            D   = d((co(:,:,ed(edges,1))+co(:,:,ed(edges,2)))./2);
+            v = co(:,:,ed(edges,2))-co(:,:,ed(edges,1));
+			if isa(f,'function_handle')
+				edco = 1/2*co(:,:,ed(edges,2))+1/2*co(:,:,ed(edges,1));
+				F = f(edco);
+			else
+				F = f;
+			end
+			D = double(squeeze(dot(F,v)));
             b   = sparse(edges,1,D(:),Ne,1);
 		end
 		
@@ -307,6 +338,7 @@ classdef CurlCurl < handle
 
             obj.mesh = mesh;
             obj.mesh.el = sort(obj.mesh.el,2);
+			%obj.mesh.el = sortrows(obj.mesh.el);
             obj.mesh.create_edges();
             obj.fe   = fe;
             obj.qr   = qr;
@@ -481,13 +513,13 @@ classdef CurlCurl < handle
                                 error('ofem:elliptic:InvalidArgument',...
                                       'Each cell entry in opt.dirichlet must be a struct containing a ''f'' and a ''idx'' field.');
                             end
-                            if isnumeric(opt.dirichlet{k}.f) && isscalar(opt.dirichlet{k}.f)
+                            if isnumeric(opt.dirichlet{k}.f) && ~isscalar(opt.dirichlet{k}.f) && isvector(opt.dirichlet{k}.f) && ~isrow(opt.dirichlet{k}.f)
                                 val = opt.dirichlet{k}.f;
-                                opt.dirichlet{k}.f = @(X) ofem.matrixarray(val*ones(1,1,size(X,3)));
+                                opt.dirichlet{k}.f = @(X) ofem.matrixarray(val.*ones(1,1,size(X,3)));
                             elseif isa(opt.dirichlet{k}.f,'function_handle')
                             else
                                 error('ofem:elliptic:InvalidArgument',...
-                                      'The ''f'' entry in opt.dirichlet must either be a scalar or a function handle.');
+                                      'The ''f'' entry in opt.dirichlet must either be a column vector of length 3 or a function handle.');
                             end
                         end
                     elseif isstruct(opt.dirichlet) && all(isfield(opt.dirichlet,{'f','idx'}))
@@ -499,13 +531,13 @@ classdef CurlCurl < handle
                                   'The ''idx'' entry in opt.dirichlet must be a vector.');
                         end
                         
-                        if isnumeric(dirichlet_f) && isscalar(dirichlet_f)
+                        if isnumeric(dirichlet_f) && ~isscalar(dirichlet_f) && isvector(dirichlet_f)
                             val = dirichlet_f;
                             dirichlet_f = @(X) ofem.matrixarray(val*ones(1,1,size(X,3)));
                         elseif isa(dirichlet_f,'function_handle')
                         else
                             error('ofem:elliptic:InvalidArgument',...
-                                  'The ''f'' entry in opt.dirichlet must either be a scalar or a function handle.');
+                                  'The ''f'' entry in opt.dirichlet must either be a vector or a function handle.');
                         end
                         
                         opt.dirichlet = cell(numel(dirichlet_idx),1);
@@ -714,27 +746,27 @@ classdef CurlCurl < handle
                     %% handle stiffness matrix
                     if opt.S==1
                         if iscell(opt.A)
-                            aux.S{i} = obj.stiffness(opt.A{i},signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.S{i} = obj.stiffness(opt.A{i},signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc,w,l,obj.mesh.co);
                         else
-                            aux.S{i} = obj.stiffness(opt.A,signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.S{i} = obj.stiffness(opt.A,signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc,w,l,obj.mesh.co);
                         end
                         S = S + aux.S{i};
                     end
                     %% handle damping matrix
                     if opt.D==1
                         if iscell(opt.b)
-                            aux.D{i} = obj.damping(opt.b{i},opt.v{i},signLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.D{i} = obj.damping(opt.b{i},opt.v{i},signLoc,detDLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         else
-                            aux.D{i} = obj.damping(opt.b,opt.v{i},signLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.D{i} = obj.damping(opt.b,opt.v{i},signLoc,detDLoc,DinvTLoc,DkLoc,phi,dphi,w,elemsLoc,obj.mesh.ed,el2edLoc);
                         end
                         D = D + aux.D{i};
                     end
                     %% handle mass matrix
                     if opt.M==1
                         if iscell(opt.c)
-                            aux.M{i} = obj.mass(opt.c{i},signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.M{i} = obj.mass(opt.c{i},signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc,obj.mesh.co);
                         else
-                            aux.M{i} = obj.mass(opt.c,signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc);
+                            aux.M{i} = obj.mass(opt.c,signLoc,DinvTLoc,detDLoc,phi,w,elemsLoc,obj.mesh.ed,el2edLoc,obj.mesh.co);
                         end
                         M = M + aux.M{i};
 					end
@@ -1135,7 +1167,7 @@ classdef CurlCurl < handle
             sign = reshape(obj.mesh.el2edsign',1,6,[]);
             sign = repmat(sign,3,1,1);
             sign = ofem.matrixarray(sign);
-            uCell = (1./abs(detD))*(Dk*(dphi.*sign))*uElem;
+            uCell = (1./detD)*(Dk*(dphi.*sign))*uElem;
         end
         
         %%
@@ -1149,8 +1181,8 @@ classdef CurlCurl < handle
             u0 = squeeze(dot(F,v));
         end
         
-        function [u0,eID] = setInflow(obj,bd)
-            ss = obj.mesh.bd(2,bd.idx);
+        function [a0,eID] = setExcitation(obj,roi)
+            ss = obj.mesh.roi(2,roi.idx);
             ss = ss{1};
             ss = unique(sort(ss,2),'rows','legacy');
             ss = [ss(:,1),ss(:,2);ss(:,1),ss(:,3);ss(:,2),ss(:,3)];
@@ -1160,9 +1192,9 @@ classdef CurlCurl < handle
 
             co = 1/2*obj.mesh.co(:,:,obj.mesh.ed(eID,1))+1/2*obj.mesh.co(:,:,obj.mesh.ed(eID,2));
             
-            F = bd.f(co);
+            F = roi.f(co);
             
-            u0 = double(squeeze(dot(F,v)));
+            a0 = double(squeeze(dot(F,v)));
         end
             
     end

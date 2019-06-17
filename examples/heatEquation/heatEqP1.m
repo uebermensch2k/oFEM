@@ -65,6 +65,7 @@ M=c*rho*asm.M;
 Dofs = asm.DOFs;
 u = full(asm.dirichlet);
 u_diri = full(asm.dirichlet);
+u(Dofs) = 290;
 
 
 %% Solving
@@ -99,7 +100,7 @@ for t=tmin:dt:tmax
     t
     mesh.export_UCD(fullfile(pwd,'room_heater'),...
                      strcat('export',num2str(count)),...
-                     {'T'; u; 'K'});
+                     {'T', u, 'K'});
 
     count = count+1;
 end
