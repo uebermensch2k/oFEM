@@ -1415,11 +1415,11 @@ classdef mesh < handle
 			   tt = obj.el;
 		   end
 		   pp  = double(reshape(permute(obj.co,[3,1,2]),[],size(obj.co,1)));
-           tol = 1e-5;
+           tol = 1e-8;
            tp  = []; 
            tj  = []; 
-           tr  = []; 
-           op  = [];               
+           %tr  = []; 
+           %op  = [];               
 		   
            %if (nargin >= +5), tr = varargin{1}; end
            %if (nargin >= +6), op = varargin{2}; end
@@ -1532,8 +1532,8 @@ classdef mesh < handle
                         end
                     else
                         op.long = .75; 
-                    end
-            end
+					end
+				end
 
             %dimensions of rectangles
             nd = size(rp,2) / +2 ;
