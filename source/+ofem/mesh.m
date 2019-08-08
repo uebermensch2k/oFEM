@@ -1169,10 +1169,11 @@ classdef mesh < handle
                     ss    = ss{1};
                     switch obj.type
                         case 'tet'
-                            ss = unique(sort(ss,2),'rows','legacy');
-                            ss = [ss(:,1),ss(:,2);ss(:,1),ss(:,3);ss(:,2),ss(:,3)];
-                            idx = ismember(obj.ed,ss,'rows');
-                            eID{1} = find(idx);
+                            %ss = unique(sort(ss,2),'rows','legacy');
+                            ss = [ss(:,2),ss(:,1);ss(:,3),ss(:,2);ss(:,1),ss(:,3)];
+                            [~,idx] = ismember(ss,obj.ed,'rows');
+							idx(idx==0) = [];
+							eID{1} = idx;
                             
                         otherwise
                             error('ofem:mesh:dirichletEdges',...
