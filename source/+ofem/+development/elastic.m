@@ -311,7 +311,8 @@ classdef elastic < handle
             
             for q=1:Nq
                 X = faceco*(l(q,:)');
-                F = F + g(X,normals)*(w(q)*phi(:,q)');
+				G = g(X,normals);
+                F = F + G*(w(q)*phi(:,q)');
             end
             
             F    = F*meas;
@@ -519,25 +520,25 @@ classdef elastic < handle
                 else
                     if iscell(opt.dirichlet)
                         for k=1:numel(opt.dirichlet)
-                            if ~all(isfield(opt.dirichlet{k},{'data','idx'}))
+                            if ~all(isfield(opt.dirichlet{k},{'f','idx'}))
                                 error('ofem:elliptic:InvalidArgument',...
-                                    'opt.dirichlet{%d} must contain a ''data'' and a ''idx'' field.',k);
+                                    'opt.dirichlet{%d} must contain a ''f'' and a ''idx'' field.',k);
                             end
                             if opt.dirichlet{k}.idx>Nbd
                                 error('ofem:elliptic:InvalidArgument',...
                                     'opt.dirichlet{%d}.idx exceeds the number of available sidesets.',k);
                             end
-                            if isnumeric(opt.dirichlet{k}.data) && isscalar(opt.dirichlet{k}.data)
-                                val = opt.dirichlet{k}.data;
-                                opt.dirichlet{k}.data = @(X) val*ones(1,1,size(X,3));
-                            elseif isa(opt.dirichlet{k}.data,'function_handle')
+                            if isnumeric(opt.dirichlet{k}.f) && isscalar(opt.dirichlet{k}.f)
+                                val = opt.dirichlet{k}.f;
+                                opt.dirichlet{k}.f = @(X) val*ones(1,1,size(X,3));
+                            elseif isa(opt.dirichlet{k}.f,'function_handle')
                             else
                                 error('ofem:elliptic:InvalidArgument',...
                                     'opt.dirichlet.data must either be a scalar or a function handle.');
                             end
                         end
                     elseif isstruct(opt.dirichlet) && all(isfield(opt.dirichlet,{'data','idx'}))
-                        dirichletdata = opt.dirichlet.data;
+                        dirichletdata = opt.dirichlet.f;
                         dirichletidx  = opt.dirichlet.idx ;
                         
                         if ~isnumeric(dirichletidx) || ~isvector(dirichletidx)
@@ -559,7 +560,7 @@ classdef elastic < handle
                         
                         opt.dirichlet = cell(numel(dirichletidx),1);
                         for k=1:numel(dirichletidx)
-                            opt.dirichlet{k}.data = dirichletdata;
+                            opt.dirichlet{k}.f = dirichletdata;
                             opt.dirichlet{k}.idx  = dirichletidx{k};
                         end
                     else
@@ -729,7 +730,7 @@ classdef elastic < handle
                 aux.dirichletidx=zeros(Ndiri,1);
                 for i=1:Ndiri
                     nodes = obj.mesh.dirichlet(opt.dirichlet{i}.idx);
-                    aux.dirichlet{i} = obj.dirichlet(opt.dirichlet{i}.data,nodes{1},obj.mesh.co);
+                    aux.dirichlet{i} = obj.dirichlet(opt.dirichlet{i}.f,nodes{1},obj.mesh.co);
                     aux.dirichletidx(i) = opt.dirichlet{i}.idx;
                     b = b - (S+D+M)*aux.dirichlet{i};
                 end
