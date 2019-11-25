@@ -949,6 +949,7 @@ classdef mesh < handle
             I             = I(:,2)-I(:,1);
             [obj.fa,~,ic] = unique(obj.fa,'rows','stable');
             obj.el2fa     = reshape(ic,Nt,[]);
+			I = I./abs(I);
             obj.el2fasign = cast(reshape(I,Nt,[]),'INT8');
         end
 
