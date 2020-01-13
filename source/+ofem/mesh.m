@@ -949,6 +949,7 @@ classdef mesh < handle
             I             = I(:,2)-I(:,1);
             [obj.fa,~,ic] = unique(obj.fa,'rows','stable');
             obj.el2fa     = reshape(ic,Nt,[]);
+			I = I./abs(I);
             obj.el2fasign = cast(reshape(I,Nt,[]),'INT8');
         end
 
@@ -1169,10 +1170,11 @@ classdef mesh < handle
                     ss    = ss{1};
                     switch obj.type
                         case 'tet'
-                            ss = unique(sort(ss,2),'rows','legacy');
-                            ss = [ss(:,1),ss(:,2);ss(:,1),ss(:,3);ss(:,2),ss(:,3)];
-                            idx = ismember(obj.ed,ss,'rows');
-                            eID{1} = find(idx);
+                            %ss = unique(sort(ss,2),'rows','legacy');
+                            ss = [ss(:,2),ss(:,1);ss(:,3),ss(:,2);ss(:,1),ss(:,3)];
+                            [~,idx] = ismember(ss,obj.ed,'rows');
+							idx(idx==0) = [];
+							eID{1} = idx;
                             
                         otherwise
                             error('ofem:mesh:dirichletEdges',...
@@ -1302,7 +1304,10 @@ classdef mesh < handle
                                     case 4
                                         %% first order mesh
                                         % 1 2 3 4
-                                        faces{i} = ss;
+                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2 3]);... % E1
+                                                    obj.el(ss{1,i}{2,2},[1 2 4]);... % E2
+                                                    obj.el(ss{1,i}{2,3},[2 3 4]);... % E3
+													obj.el(ss{1,i}{2,4},[1 3 4])];   % E4
 
                                     case 10
                                         %% second order mesh
@@ -1337,16 +1342,30 @@ classdef mesh < handle
                                 switch npere
                                     case 4
                                         %% first order mesh
-                                        % 1 2 3 4
+                                        % gmsh directly passes the boundary
+                                        % nodes
                                         faces{i} = ss{i};
 
                                     case 10
                                         %% second order mesh
-                                        % 1 2 3 4 e12 e13 e14 e23 e24 e34
-                                        faces{i} = [obj.el(ss{1,i}{2,1},[1 2 3 5  8 6]);... % S1
-                                                    obj.el(ss{1,i}{2,2},[1 2 4 5  9 7]);... % S2
-                                                    obj.el(ss{1,i}{2,3},[2 3 4 8 10 9]);... % S3
-                                                    obj.el(ss{1,i}{2,4},[1 3 4 6 10 7])];   % S4
+                                        % For 2nd order meshes and beyond
+                                        % we need to get the element idx
+                                        % before we can create the faces
+										
+										[~,elem1] = ismember(sort(obj.bd{2,idx},2),sort(obj.el(:,[1,2,3]),2),'rows');
+										[~,elem2] = ismember(sort(obj.bd{2,idx},2),sort(obj.el(:,[1,2,4]),2),'rows');
+										[~,elem3] = ismember(sort(obj.bd{2,idx},2),sort(obj.el(:,[2,3,4]),2),'rows');
+										[~,elem4] = ismember(sort(obj.bd{2,idx},2),sort(obj.el(:,[1,3,4]),2),'rows');
+										% Remove zeros
+										elem1(elem1==0) = [];
+										elem2(elem2==0) = [];
+										elem3(elem3==0) = [];
+										elem4(elem4==0) = [];
+										% Compute new faces
+                                        faces{i} = [obj.el(elem1,[1 2 3 5  8 6]);... % S1
+                                                    obj.el(elem2,[1 2 4 5  9 7]);... % S2
+                                                    obj.el(elem3,[2 3 4 8 10 9]);... % S3
+                                                    obj.el(elem4,[1 3 4 6 10 7])];   % S4
 
                                 end
 
@@ -1357,8 +1376,9 @@ classdef mesh < handle
 
                                 e1         = obj.co(:,:,faces{i}(:,2))-obj.co(:,:,faces{i}(:,1));
                                 e2         = obj.co(:,:,faces{i}(:,3))-obj.co(:,:,faces{i}(:,1));
-                                normals{i} = cross(e1,e2,1);
-                                meas{i}    = sqrt(dot(normals{i},normals{i},1))/2;
+                                normals{i} = ofem.matrixarray(cross(e1,e2,1));
+                                meas{i}    = ofem.matrixarray(sqrt(dot(normals{i},normals{i},1))/2);
+								normals{i} = normals{i}*1./(2*meas{i});
 
 
                                 % correct direction
@@ -1415,11 +1435,11 @@ classdef mesh < handle
 			   tt = obj.el;
 		   end
 		   pp  = double(reshape(permute(obj.co,[3,1,2]),[],size(obj.co,1)));
-           tol = 1e-5;
+           tol = 1e-8;
            tp  = []; 
            tj  = []; 
-           tr  = []; 
-           op  = [];               
+           %tr  = []; 
+           %op  = [];               
 		   
            %if (nargin >= +5), tr = varargin{1}; end
            %if (nargin >= +6), op = varargin{2}; end
@@ -1532,8 +1552,8 @@ classdef mesh < handle
                         end
                     else
                         op.long = .75; 
-                    end
-            end
+					end
+				end
 
             %dimensions of rectangles
             nd = size(rp,2) / +2 ;
@@ -1871,7 +1891,7 @@ classdef mesh < handle
             %% basic computations
             Nf   = nargin-3         ; % number of functions
             Nc   = size(obj.el,1)   ; % number of cells
-            Nn   = obj.Nco          ; % number of nodes
+            Nn   = size(obj.co,3); % number of nodes
 %             Nn  = size(obj.co,1);
             Nm   = size(obj.parts,2); % number of materials
 

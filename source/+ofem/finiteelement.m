@@ -80,8 +80,13 @@ classdef finiteelement
                     
 
                 case ofem.finiteelement.NE1P
-                    error('MATLAB:ofem:finiteelement:weights:NotSupported',...
-                          'NE1P not implemented yet!');
+                    switch dim
+						case 2
+							error('MATLAB:ofem:finiteelement:weights:NotSupported',...
+                          'NE2P not implemented yet for 2D!');
+						case 3
+							test=1;
+					end
 
                 case ofem.finiteelement.NE2P
                     error('MATLAB:ofem:finiteelement:weights:NotSupported',...

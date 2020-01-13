@@ -14,7 +14,7 @@ classdef CurlCurl < handle
     methods(Access=protected,Static)
 
         %%
-        function S=stiffness(A,sign,Dk,detD,dphi,el,ed,el2ed,w,l,co)
+        function S=stiffness(A,sign,Dk,detD,dphi,el,ed,fa,el2ed,el2fa,w,l,co)
         %stiffness returns the stiffness matrix.
         %
         % S=stiffness(DinvT,detD,dphi,w,el,co) returns the stiffness matrix
@@ -36,13 +36,10 @@ classdef CurlCurl < handle
         % ofem.finiteelement.dphi, ofem.quassianquadrature.data
         %
             Ns = size(dphi,2);
-            Nq = size(w   ,1);
+            Nq = size(w   ,2);
             Ne = size(el  ,1);
-            Nc = size(ed,1);
+            Nc = 2*size(ed,1)+2*size(fa,1);
 			Nl = 4;
-			w = 1;
-			l = [1/4,1/4,1/4,1/4];
-			Nq = 1;
             
             S=ofem.matrixarray(zeros(Ns,Ns,Ne));
 
@@ -55,15 +52,18 @@ classdef CurlCurl < handle
 				end
 			else
 				for q=1:Nq
-					dphii = Dk*(dphi(:,:).*sign);
+					dphii = Dk*(dphi(:,:,q).*sign);
 					S = S+(dphii'*A*dphii);
 				end
 			end
 
             S=S*(1./abs(detD));
 
-            J = repmat(1:Ns,Ns,1);
-            I = el2ed(:,J')';
+            JE = repmat(1:6,6,1);
+			JF = repmat(1:4,4,1);
+            IE = el2ed(:,JE')';
+			IF = el2fa(:,JF')';
+			I = [IE;IE+size(ed,1);IF+2*size(ed,1);IF+2*size(ed,1)+size(fa,1)];
             J = el2ed(:,J )';
 
             S = sparse(I(:),J(:),S(:),Nc,Nc);
@@ -337,9 +337,10 @@ classdef CurlCurl < handle
             end
 
             obj.mesh = mesh;
-            obj.mesh.el = sort(obj.mesh.el,2);
+            %obj.mesh.el = sort(obj.mesh.el,2);
 			%obj.mesh.el = sortrows(obj.mesh.el);
             obj.mesh.create_edges();
+			obj.mesh.create_faces();
             obj.fe   = fe;
             obj.qr   = qr;
 		end
@@ -713,12 +714,14 @@ classdef CurlCurl < handle
             %% volume related integration
             if intvol==1
                 % volume quad data
-                [w,l] = obj.qr.data(0);
+				[w,l] = obj.fe.quaddata(3,3);
+                %[w,l] = obj.qr.data(0);
 
                 % shape functions related stuff
                 %pipj  = obj.fe.phiiphij(obj.mesh.dim);
-                phi   = obj.fe.phi(l);
-                dphi  = obj.fe.dphi(l);
+                %phi   = obj.fe.phi(l);
+                %dphi  = obj.fe.dphi(l);
+				[phi,dphi] = obj.fe.basis(3);
 				if opt.R
 					[wLG,lLG] = obj.qrLG.data(0);
 					dphiLG = obj.feLG.dphi(lLG);
@@ -730,7 +733,8 @@ classdef CurlCurl < handle
                 aux.Dk      = Dk;
                 aux.DinvT   = DinvT;
                 sign = reshape(obj.mesh.el2edsign',1,6,[]);
-                sign = repmat(sign,3,1,1);
+				sign = [sign,reshape(obj.mesh.el2fasign',1,4,[])];
+                sign = repelem(sign,3,2,1);
                 sign = ofem.matrixarray(sign);
 
                 % perform assembly
@@ -742,13 +746,14 @@ classdef CurlCurl < handle
                     DkLoc    = Dk(:,:,pIdx);
                     signLoc  = sign(:,:,pIdx);
                     el2edLoc = obj.mesh.el2ed(pIdx,:);
+					el2faLoc = obj.mesh.el2fa(pIdx,:);
                     
                     %% handle stiffness matrix
                     if opt.S==1
                         if iscell(opt.A)
-                            aux.S{i} = obj.stiffness(opt.A{i},signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc,w,l,obj.mesh.co);
+                            aux.S{i} = obj.stiffness(opt.A{i},signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,obj.mesh.fa,el2edLoc,el2faLoc,w,l,obj.mesh.co);
                         else
-                            aux.S{i} = obj.stiffness(opt.A,signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,el2edLoc,w,l,obj.mesh.co);
+                            aux.S{i} = obj.stiffness(opt.A,signLoc,DkLoc,detDLoc,dphi,elemsLoc,obj.mesh.ed,obj.mesh.fa,el2edLoc,el2faLoc,w,l,obj.mesh.co)
                         end
                         S = S + aux.S{i};
                     end
@@ -812,7 +817,8 @@ classdef CurlCurl < handle
             end
 
             %% Dirichlet data
-            DOFs = 1:Nc; % NOTE: this is only valid for P1 elements => need an update
+            %DOFs = 1:Nc; % NOTE: this is only valid for P1 elements => need an update
+			DOFs = 1:(2*size(obj.mesh.el,1)+2*size(obj.mesh.fa,1));
             if intdiri==1
                 for i=1:Ndiri
                     edges = obj.mesh.dirichletEdges(opt.dirichlet{i}.idx);
