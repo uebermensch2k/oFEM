@@ -228,11 +228,24 @@ classdef elliptic < handle
 
             F    = ofem.matrixarray(zeros(1,Ns,Ne));
 
-            for q=1:Nq
+			
+			if(isa(f,'function_handle'))
+                 for q=1:Nq
                 X = elco*(l(q,:)');
                 
                 F = F + f(X)*(w(q)*phi(:,q)');
             end
+            elseif f==0
+                F = ofem.matrixarray(zeros(6,1,Ne));
+            else
+                f = f(:,:,pIdx);
+                phii = ofem.matrixarray(zeros(3,1,Ne));
+                for q=1:Nq
+                    phii = phii + (w(q)*DinvT*phi(:,:,q));
+                end
+                F = phii'*f;
+            end
+
 
 %             F = permute(double(F*detD),[3,2,1]);
 
