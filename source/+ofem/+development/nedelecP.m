@@ -156,7 +156,7 @@ classdef nedelecP < handle
 			for i = 1:size(baseH,2)
 				basecH(:,i) = curl(baseH(:,i),dr);
 			end
-			[w,l] = obj.quaddata(3,3);
+			[~,l] = obj.quaddata(3,3);
 			obj.N = repmat(baseH,1,1,size(l,1));
 			obj.curlN = repmat(basecH,1,1,size(l,1));
 			for i=1:size(obj.N,3)
